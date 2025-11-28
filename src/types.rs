@@ -1,27 +1,74 @@
 use macroquad::prelude::*;
-pub enum gate_type {
+pub enum GateType {
     NOT,
     OR,
     XOR,
     NOR,
     XNOR,
     AND,
-    NAND
+    NAND,
 }
 
-pub struct gate {
-    pub rect : Rect,
-    // can index up to 4,294,967,295 wires.
-    pub input1 : u32,
-    // for 'NOT' gate this is ignored
-    pub input2 : u32,
-    pub output : u32,
-    pub gate_type : gate_type 
+pub enum Input {
+    Single(u32),
+    Dual(u32, u32),
+    Triple(u32, u32, u32),
+    Variadic(Vec<u32>),
 }
 
-pub struct circuit {
-    pub wires : Vec<bool>,
-    pub gates : Vec<gate>, // make sure this array is ordered topologically
+pub struct Gate {
+    pub rect: Rect,
+    pub input: Input,
+    pub output: u32,
+    pub gate_type: GateType,
+}
+
+pub struct Circuit {
+    pub wires: Vec<bool>,
+    pub gates: Vec<Gate>, // make sure this array is ordered topologically
+}
+
+impl Gate {
+    pub fn evaluate(&self, circuit: &Circuit) -> bool {
+        let wires = &circuit.wires;
+        match (&self.gate_type, &self.input) {
+            (GateType::NOT, Input::Single(input1)) => {
+                let a = wires[*input1 as usize];
+                !a
+            }
+            (GateType::OR, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                a | b
+            }
+            (GateType::XOR, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                a ^ b
+            }
+            (GateType::XNOR, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                !(a ^ b)
+            }
+            (GateType::NOR, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                !(a | b)
+            }
+            (GateType::AND, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                a & b
+            }
+            (GateType::NAND, Input::Dual(input1, input2)) => {
+                let a = wires[*input1 as usize];
+                let b = wires[*input2 as usize];
+                !(a & b)
+            }
+            _ => panic!("Unsupported gate type or input configuration"),
+        }
+    }
 }
 
 // input1, input2, memory

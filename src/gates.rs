@@ -2,20 +2,20 @@ use macroquad::prelude::*;
 use crate::types::*;
 use crate::utils::*;
 
-impl circuit {
+impl Circuit {
 
-    pub fn add_gate(&mut self, rect : Rect, input1 : u32, input2 : u32, gate_type : gate_type) {
+    pub fn add_gate(&mut self, rect : Rect, input1 : u32, input2 : u32, gate_type : GateType) {
 
         let newInput2 = match gate_type {
-            gate_type::NOT => 0,
+            GateType::NOT => 0,
             _ => input2
         };
         // not necessarily in topological order
-        self.gates.push(gate{rect : rect, input1: input1, input2: newInput2, output: 0 as u32, gate_type : gate_type});
+        self.gates.push(Gate{rect : rect, input: Input::Dual(input1, newInput2), output: 0 as u32, gate_type : gate_type});
     }
 
     // the wires result can only be trusted after a 'emulate'
-    pub fn add_wire(&mut self, gateOut: gate, gateIn: u32, inputProbe: u32, wireStart : u32, wireEnd : u32) {
+    pub fn add_wire(&mut self, gateOut: Gate, gateIn: u32, inputProbe: u32, wireStart : u32, wireEnd : u32) {
         // should remove the already existing
         // gateOut.output = wireStart;
         // updateWireVisual(gateOut);
@@ -31,19 +31,7 @@ impl circuit {
     // assumes topological order
     pub fn tick(&mut self) {
         for gate in &self.gates {
-            let a = self.wires[gate.input1 as usize];
-            let b = self.wires[gate.input2 as usize]; // b should always have a value, even for 'NOT'
-
-            let result: bool = match gate.gate_type {
-                gate_type::NOT  => !a,
-                gate_type::OR   => a | b,
-                gate_type::XOR  => a ^ b,
-                gate_type::XNOR => !(a ^ b),
-                gate_type::NOR  => !(a | b),
-                gate_type::AND  => a & b,
-                gate_type::NAND => !(a & b),
-            };
-
+            let result = gate.evaluate(&self);
             self.wires[gate.output as usize] = result;
         }
     }
@@ -56,23 +44,23 @@ impl circuit {
             let rect = gate.rect;
             if intersects(rect, camera_view_rect) {        
                 let color: Color = match gate.gate_type {
-                    gate_type::NOT  => RED,
-                    gate_type::OR   => PINK,
-                    gate_type::XOR  => BLUE,
-                    gate_type::XNOR => GRAY,
-                    gate_type::NOR  => ORANGE,
-                    gate_type::AND  => PURPLE,
-                    gate_type::NAND => BROWN,
+                    GateType::NOT  => RED,
+                    GateType::OR   => PINK,
+                    GateType::XOR  => BLUE,
+                    GateType::XNOR => GRAY,
+                    GateType::NOR  => ORANGE,
+                    GateType::AND  => PURPLE,
+                    GateType::NAND => BROWN,
                 };
 
                 let text: &str = match gate.gate_type {
-                    gate_type::NOT  => "not",
-                    gate_type::OR   => "or",
-                    gate_type::XOR  => "xor",
-                    gate_type::XNOR => "xnor",
-                    gate_type::NOR  => "nor",
-                    gate_type::AND  => "and",
-                    gate_type::NAND => "nand",
+                    GateType::NOT  => "not",
+                    GateType::OR   => "or",
+                    GateType::XOR  => "xor",
+                    GateType::XNOR => "xnor",
+                    GateType::NOR  => "nor",
+                    GateType::AND  => "and",
+                    GateType::NAND => "nand",
                 };
                 
                 draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
