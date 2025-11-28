@@ -1,0 +1,1 @@
+/Users/manuel/Code/playground/target/debug/playground: /Users/manuel/Code/playground/src/events.rs /Users/manuel/Code/playground/src/gates.rs /Users/manuel/Code/playground/src/main.rs /Users/manuel/Code/playground/src/types.rs
