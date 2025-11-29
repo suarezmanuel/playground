@@ -1,39 +1,14 @@
 use macroquad::prelude::*;
 use crate::types::*;
 use crate::utils::*;
+use std::mem;
 
 impl Circuit {
 
-    pub fn add_gate(&mut self, rect : Rect, input1 : u32, input2 : u32, gate_type : GateType) {
-
-        let newInput2 = match gate_type {
-            GateType::NOT => 0,
-            _ => input2
-        };
+    pub fn add_gate(&mut self, gate : Gate) -> usize {
         // not necessarily in topological order
-        self.gates.push(Gate{rect : rect, input: Input::Dual(input1, newInput2), output: 0 as u32, gate_type : gate_type});
-    }
-
-    // the wires result can only be trusted after a 'emulate'
-    pub fn add_wire(&mut self, gateOut: Gate, gateIn: u32, inputProbe: u32, wireStart : u32, wireEnd : u32) {
-        // should remove the already existing
-        // gateOut.output = wireStart;
-        // updateWireVisual(gateOut);
-
-        // add multiplexers in future
-        // let mut probe = match inputProbe {
-            
-        // }
-
-        // show have some good (x,y) data
-    }
-
-    // assumes topological order
-    pub fn tick(&mut self) {
-        for gate in &self.gates {
-            let result = gate.evaluate(&self);
-            self.wires[gate.output as usize] = result;
-        }
+        self.gates.push(gate);
+        return self.gates.len()-1;
     }
 
     pub fn draw_gates(&self, camera : &Camera2D) {

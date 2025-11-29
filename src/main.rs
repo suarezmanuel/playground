@@ -16,7 +16,7 @@ async fn main() {
     let mut counter = 0;
     let mut fps: i32 = 0;
     let mut now = SystemTime::now();
-    let FPS_REST = 10;
+    let fps_rest = 10;
 
     let mut camera: Camera2D = Camera2D::from_display_rect(Rect {
         w: screen_width(),
@@ -27,81 +27,41 @@ async fn main() {
     let mut starting_drag_world: Option<Vec2> = None;
     let base_zoom = camera.zoom;
 
-    let mut circuit: Circuit = Circuit {
-        wires: Vec::new(),
-        gates: Vec::new(),
-    };
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 0 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::AND,
-    );
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 100 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::OR,
-    );
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 200 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::NAND,
-    );
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 300 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::XOR,
-    );
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 400 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::XNOR,
-    );
-    circuit.add_gate(
-        Rect {
-            w: 100.0,
-            h: 100.0,
-            x: 500 as f32,
-            y: 0 as f32,
-        },
-        0,
-        0,
-        GateType::NOR,
-    );
+    let mut circuit: Circuit = Circuit::new();
+
+    let and = Gate::new(Rect { w: 64.0, h: 64.0, x: 0 as f32, y: 0 as f32 }, GateType::AND);
+    let not = Gate::new(Rect { w: 64.0, h: 64.0, x: 64 as f32, y: 0 as f32 }, GateType::NOT);
+    let or = Gate::new(Rect { w: 64.0, h: 64.0, x: 128 as f32, y: 0 as f32 }, GateType::OR);
+
+    let and_index= circuit.add_gate(and);
+    let not_index= circuit.add_gate(not);
+    let or_index = circuit.add_gate(or);
+
+    let source= circuit.new_wire();
+    let wire1 = circuit.new_wire();
+    let wire2 = circuit.new_wire();
+    let result = circuit.new_wire();
+    // only the 'electricity source' wire should be set
+    circuit.set_wire(source, true);
+
+    circuit.connect_wire(source, None, Some(not_index), 0);
+    circuit.connect_wire(wire1, Some(not_index), Some(and_index), 0);
+    circuit.connect_wire(source, None, Some(and_index), 1); // expect false from AND
+    circuit.connect_wire(wire2, Some(and_index), Some(or_index), 0);
+    circuit.connect_wire(source, None, Some(or_index), 1); // expect true from OR
+    circuit.connect_wire(result, Some(or_index), None, 0); // expect true from OR
+
+
+    while !circuit.emulation_done {
+        circuit.tick();
+        println!("{}", circuit.get_wire(source));
+    }
+    println!("emulation done! {}", circuit.get_wire(result));
 
     loop {
-        if counter == FPS_REST {
+        if counter == fps_rest {
             let total_time_elapsed = now.elapsed().unwrap().as_millis() as i32;
-            fps = (FPS_REST * 1000) / total_time_elapsed;
+            fps = (fps_rest * 1000) / total_time_elapsed;
             counter = 0;
             now = SystemTime::now();
         }
@@ -124,17 +84,17 @@ async fn main() {
         let (_sx, sy) = mouse_wheel();
         if sy != 0.0 {
             let sensitivity = 0.001; // tune
-            let MAX_ZOOM = 100.0;
+            let max_zoom = 100.0;
             // clamp factor to avoid zero/negative scaling
             let factor = (1.0 + sy * sensitivity).max(0.01); // >1 zooms in, <1 zooms out
 
             let mut new_zoom: Vec2 = camera.zoom * Vec2::new(factor, factor);
             new_zoom.x = new_zoom
                 .x
-                .clamp(base_zoom.x * (1.0 / MAX_ZOOM), base_zoom.x * MAX_ZOOM);
+                .clamp(base_zoom.x * (1.0 / max_zoom), base_zoom.x * max_zoom);
             new_zoom.y = new_zoom
                 .y
-                .clamp(base_zoom.y * MAX_ZOOM, base_zoom.y * (1.0 / MAX_ZOOM));
+                .clamp(base_zoom.y * max_zoom, base_zoom.y * (1.0 / max_zoom));
 
             // zoom toward mouse position:
             let mouse = Vec2::new(mouse_position().0, mouse_position().1);

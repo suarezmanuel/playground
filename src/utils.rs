@@ -25,7 +25,7 @@ pub fn draw_grid(camera: &Camera2D, base_zoom: Vec2) {
     let zoom_percentage = ((camera.zoom.x - min_zoom.0) / (base_zoom.x - min_zoom.0)).max(0.01).min(1.0);
     // println!("{}", zoom_percentage);
 
-    let mut scale : f32 = 10.0;
+    let mut scale : f32 = 8.0;
     let rect = camera_view_rect(&camera);
 
     let mut tile_count : u32 = ((rect.w / scale) * (rect.h / scale)).round() as u32; // estimate
