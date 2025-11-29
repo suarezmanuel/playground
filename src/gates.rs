@@ -26,6 +26,8 @@ impl Circuit {
                     GateType::NOR  => ORANGE,
                     GateType::AND  => PURPLE,
                     GateType::NAND => BROWN,
+                    GateType::PWR  => YELLOW,
+                    GateType::GND  => DARKGRAY,
                 };
 
                 let text: &str = match gate.gate_type {
@@ -36,6 +38,8 @@ impl Circuit {
                     GateType::NOR  => "nor",
                     GateType::AND  => "and",
                     GateType::NAND => "nand",
+                    GateType::PWR  => "pwr",
+                    GateType::GND  => "gnd",
                 };
                 
                 draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);

@@ -29,32 +29,46 @@ async fn main() {
 
     let mut circuit: Circuit = Circuit::new();
 
+    let pwr1 = Gate::new(Rect { w: 64.0, h: 64.0, x: -128 as f32, y: 0 as f32 }, GateType::PWR);
+    let pwr2 = Gate::new(Rect { w: 64.0, h: 64.0, x: -128 as f32, y: 0 as f32 }, GateType::PWR);
     let and = Gate::new(Rect { w: 64.0, h: 64.0, x: 0 as f32, y: 0 as f32 }, GateType::AND);
     let not = Gate::new(Rect { w: 64.0, h: 64.0, x: 64 as f32, y: 0 as f32 }, GateType::NOT);
     let or = Gate::new(Rect { w: 64.0, h: 64.0, x: 128 as f32, y: 0 as f32 }, GateType::OR);
+    let or2 = Gate::new(Rect { w: 64.0, h: 64.0, x: 192 as f32, y: 0 as f32 }, GateType::OR);
+    let ground = Gate::new(Rect { w: 64.0, h: 64.0, x: -128 as f32, y: 128 as f32 }, GateType::GND);
 
+    let pwr1_index= circuit.add_gate(pwr1);
+    let pwr2_index= circuit.add_gate(pwr2);
     let and_index= circuit.add_gate(and);
     let not_index= circuit.add_gate(not);
     let or_index = circuit.add_gate(or);
+    let or_index2 = circuit.add_gate(or2);
+    let ground_index = circuit.add_gate(ground);
 
-    let source= circuit.new_wire();
+    let source1= circuit.new_wire();
+    let source2= circuit.new_wire();
     let wire1 = circuit.new_wire();
     let wire2 = circuit.new_wire();
+    let wire3 = circuit.new_wire();
     let result = circuit.new_wire();
     // only the 'electricity source' wire should be set
-    circuit.set_wire(source, true);
+    // circuit.set_wire(source, true);
 
-    circuit.connect_wire(source, None, Some(not_index), 0);
-    circuit.connect_wire(wire1, Some(not_index), Some(and_index), 0);
-    circuit.connect_wire(source, None, Some(and_index), 1); // expect false from AND
-    circuit.connect_wire(wire2, Some(and_index), Some(or_index), 0);
-    circuit.connect_wire(source, None, Some(or_index), 1); // expect true from OR
-    circuit.connect_wire(result, Some(or_index), None, 0); // expect true from OR
+    circuit.connect_wire(source1, pwr1_index, and_index, 0, 0);
+    circuit.connect_wire(source1, pwr1_index, or_index, 0, 0);
+    circuit.connect_wire(source2, pwr2_index, and_index, 0, 1);
+    circuit.connect_wire(source2, pwr1_index, or_index, 0, 1);
+
+    circuit.connect_wire(wire1, and_index, not_index, 0, 0);
+    circuit.connect_wire(wire2, not_index, or_index2, 0, 0);
+    circuit.connect_wire(wire3, or_index, or_index2, 0, 1);
+
+    circuit.connect_wire(result, or_index2, ground_index, 0, 0);
 
 
     while !circuit.emulation_done {
         circuit.tick();
-        println!("{}", circuit.get_wire(source));
+        println!("{}", circuit.get_wire(source1));
     }
     println!("emulation done! {}", circuit.get_wire(result));
 
