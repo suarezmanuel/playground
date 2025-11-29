@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-pub fn draw_ui() {
+pub fn draw_ui(log_msg : String) {
     // ensure we're in screen-space (pixels)
     set_default_camera();
 
@@ -13,5 +13,5 @@ pub fn draw_ui() {
     let y = screen_height() - 100.0;
 
     draw_rectangle(x, y, screen_width()-x, screen_height()-y, WHITE);
-    draw_text("hello from ui", x, y+50.0, 32 as f32, BLACK);
+    draw_text(log_msg.as_str(), x, y+50.0, 32 as f32, BLACK);
 }
