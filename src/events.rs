@@ -1,6 +1,6 @@
-use crate::types::*;
+use crate::types::gate::*;
 use macroquad::prelude::*;
-
+// use types::gate::*;
 struct game_state {
     pub dragging_wire: bool,
     pub current_wire_start: u32,

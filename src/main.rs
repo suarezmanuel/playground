@@ -5,12 +5,12 @@ mod gates;
 mod types;
 mod ui;
 mod utils;
-use types::*;
 use ui::draw_ui;
 use utils::*;
 use rstar::{RTree, RTreeObject, AABB, PointDistance};
-
-use crate::types::Circuit;
+use crate::types::circuit::*;
+use crate::types::gate_type::*;
+use crate::types::gate::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)] 
 struct SpatialBlockIndex {

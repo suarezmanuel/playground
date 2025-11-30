@@ -1,89 +1,8 @@
-use macroquad::{input, prelude::*};
-
-use crate::SpatialBlockIndex;
-
-#[derive(Copy, Clone)] // so it can be used inside a loop
-pub enum GateType {
-    NOT,
-    OR,
-    XOR,
-    NOR,
-    XNOR,
-    AND,
-    NAND,
-    PWR,
-    GND,
-}
-
-impl GateType {
-    pub fn color(&self) -> Color {
-        return match self {
-            GateType::NOT => RED,
-            GateType::OR => PINK,
-            GateType::XOR => BLUE,
-            GateType::XNOR => GRAY,
-            GateType::NOR => ORANGE,
-            GateType::AND => PURPLE,
-            GateType::NAND => BROWN,
-            GateType::PWR => YELLOW,
-            GateType::GND => DARKGRAY,
-        };
-    }
-
-    pub fn text(&self) -> &str {
-        return match self {
-            GateType::NOT => "not",
-            GateType::OR => "or",
-            GateType::XOR => "xor",
-            GateType::XNOR => "xnor",
-            GateType::NOR => "nor",
-            GateType::AND => "and",
-            GateType::NAND => "nand",
-            GateType::PWR => "pwr",
-            GateType::GND => "gnd",
-        };
-    }
-}
-
-#[derive(Clone)]
-pub enum Pins {
-    // Input and Output pins for gates
-    Empty,
-    Single(usize),
-    Dual(usize, usize),
-    Triple(usize, usize, usize),
-    Variadic(Vec<usize>),
-}
-
-#[derive(Debug, Clone)]
-pub enum PinType {
-    Input,
-    Output,
-}
-
-impl PinType {
-    pub fn to_string(self) -> String {
-        return match self {
-            PinType::Input => {"input".to_owned()}
-            PinType::Output => {"output".to_owned()}
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SpatialPinIndex {
-    pub rect: Rect,
-    pub index: usize,
-    pub pin_type: PinType,
-}
-
-#[derive(Clone)]
-pub struct Gate {
-    pub rect: Rect,
-    pub input: Pins,
-    pub output: Pins,
-    pub gate_type: GateType,
-}
+use macroquad::prelude::*;
+use crate::types::gate::*;
+use crate::types::gate_type::*;
+use crate::types::pins::*;
+use crate::utils::*;
 
 pub struct Circuit {
     pub emulation_done: bool,
@@ -102,14 +21,12 @@ impl Circuit {
             gates: Vec::new(),
         };
     }
-
     // wires always start as false.
     pub fn new_wire(&mut self) -> usize {
         self.wires_read.push(false);
         self.wires_write.push(false); // to make them equal in length so no problems when swapping
         self.wires_read.len() - 1
     }
-
     // make it so a 'NOT' gate automatically makes the wire yellow.
     pub fn set_wire(&mut self, wire_index: usize, value: bool) {
         if !(0..self.wires_read.len()).contains(&(wire_index)) {
@@ -282,90 +199,50 @@ impl Circuit {
         // write
         std::mem::swap(&mut self.wires_read, &mut self.wires_write);
     }
-}
 
-impl Gate {
-    pub fn new(rect: Rect, gate_type: GateType) -> Gate {
-        let input = match gate_type {
-            GateType::PWR => Pins::Empty,
-            GateType::NOT | GateType::GND => Pins::Single(0),
-            _ => Pins::Dual(0, 0),
-        };
-
-        let output = match gate_type {
-            GateType::GND => Pins::Empty,
-            _ => Pins::Single(0),
-        };
-
-        return Gate {
-            rect: rect,
-            input: input,
-            output: output,
-            gate_type: gate_type,
-        };
+    pub fn add_gate(&mut self, gate : Gate) -> usize {
+        // not necessarily in topological order
+        self.gates.push(gate);
+        return self.gates.len()-1;
     }
 
-    pub fn get_pin_count(pins: Pins) -> usize {
-        return match pins {
-            Pins::Single(_) => 1,
-            Pins::Dual(_, _) => 2,
-            Pins::Triple(_, _, _) => 3,
-            Pins::Variadic(vec) => vec.len(),
-            _ => 0,
-        };
-    }
+    pub fn draw_gates(&self, camera : &Camera2D) {
+        set_camera(camera);
 
-    pub fn get_side_pins_rects(
-        pins: Pins,
-        pin_type: PinType,
-        tl_x: f32,
-        tl_y: f32,
-    ) -> Vec<SpatialPinIndex> {
-        let mut rects: Vec<SpatialPinIndex> = Vec::new();
+        for gate in &self.gates {
+            let camera_view_rect = camera_view_rect(&camera);
+            let rect = gate.rect;
 
-        let pin_count = Self::get_pin_count(pins);
-        if pin_count > 8 {
-            println!("WARNING: i hope youre not using gates that are 64x64");
+            if intersects(rect, camera_view_rect) {        
+                let color = GateType::color(&gate.gate_type);
+                let text = GateType::text(&gate.gate_type);
+                
+                draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
+                let dims = measure_text(text, None, 32, 1.0);
+                let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
+                let ty = rect.y + rect.h * 0.35 + dims.height * 0.5; 
+
+                draw_text_ex(
+                    text, 
+                    tx, 
+                    ty, 
+                    TextParams {
+                        font_size: 32.0 as u16,
+                        font_scale: -1.0,
+                        font_scale_aspect: -1.0, 
+                        color: BLACK,
+                        ..Default::default()
+                    }
+                );
+            }
+
+            let pin_blocks = gate.clone().get_pins_blocks(); // this is kinda scuffed
+            for pin_block in pin_blocks {
+                let pin_rect = pin_block.rect;
+                if intersects(pin_rect, camera_view_rect) {
+                    draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+                }
+            }
         }
-        let pin_pixel_side_len = 6.0;
-        let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (64.0 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
-
-        for i in 1..=pin_count {
-            rects.push(SpatialPinIndex {
-                rect: Rect {
-                    x: tl_x,
-                    // camera is upside down
-                    y: tl_y + 64.0 - space_pixel_len * (i as f32) - pin_pixel_side_len * ((i - 1) as f32),
-                    w: pin_pixel_side_len,
-                    h: pin_pixel_side_len,
-                },
-                index: i-1,
-                pin_type: pin_type.clone(),
-            });
-        }
-
-        return rects;
-    }
-
-    pub fn get_pins_blocks(self) -> Vec<SpatialPinIndex> {
-        let mut rects: Vec<SpatialPinIndex> = Vec::new();
-        // input pins
-        rects.extend(Self::get_side_pins_rects(
-            self.input.clone(),
-            PinType::Input,
-            self.rect.x,
-            self.rect.y,
-        ));
-
-        // output pins
-        rects.extend(Self::get_side_pins_rects(
-            self.output.clone(),
-            PinType::Output,
-            self.rect.x + self.rect.w - 6.0,
-            self.rect.y,
-        ));
-
-        return rects;
     }
 }
