@@ -1,15 +1,8 @@
 #[derive(Clone)]
 pub struct Pin {
-    pub input_gate: usize,
-    pub output_gate: usize,
-    pub input_index: usize, 
-    pub output_index: usize, 
-    pub wire_index: usize
+    pub other_pin_index: Option<usize>,
+    pub other_gate_index: Option<usize>,
+    pub wire_index: Option<usize>
 }
-
-// enum a {
-//     Input(usize),
-//     Output(usize)
-// }
 
 pub type Pins = Vec<Pin>;

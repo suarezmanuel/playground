@@ -9,6 +9,7 @@ use rstar::{RTree, RTreeObject, AABB, PointDistance};
 use crate::types::circuit::*;
 use crate::types::gate_type::*;
 use crate::types::gate::*;
+use crate::types::pin_type::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)] 
 struct SpatialBlockIndex {
@@ -70,6 +71,10 @@ async fn main() {
 
     let mut tree: RTree<SpatialBlockIndex> = RTree::new();
 
+    let mut starting_gate_index: Option<usize> = None;
+    let mut starting_pin_index: Option<usize> = None;
+    let mut starting_pin_type: Option<PinType> = None;
+
     loop {
 
         let mut log_msg: String = "".to_string();
@@ -109,6 +114,9 @@ async fn main() {
         } else if is_key_pressed(KeyCode::Key8) {
             current_selection = GateType::GND;
         } else if is_key_pressed(KeyCode::Key9) {
+            starting_gate_index = None;
+            starting_pin_index = None;
+            starting_pin_type = None;
         } 
         
         match cursor_item {
@@ -122,8 +130,36 @@ async fn main() {
                 let mouse_pos_world = camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
                 for pin_block in pins_blocks {
                     let pin_rect = pin_block.rect;
+                    let mut hover_pin_index: Option<usize> = None;
                     if pin_rect.contains(mouse_pos_world) {
                         log_msg = format!("{} hovering {} pin {} |", log_msg, pin_block.pin_type.to_string(), pin_block.index);
+                        hover_pin_index = Some(pin_block.index);
+                    }
+
+                    if is_mouse_button_pressed(MouseButton::Left) {
+                        match hover_pin_index {
+                            Some(index) => {
+                                match (starting_pin_index, starting_pin_type, starting_gate_index) {
+                                    (Some(prev_pin_index), Some(prev_pin_type), Some(prev_gate_index)) => {
+                                        // not in the same gate, not the same type of pin, not an already existing cable
+                                        let current_pin = circuit.gates[prev_gate_index].get_pin(prev_pin_index, prev_pin_type);
+                                        if prev_gate_index != spatial_gate_index.index && pin_block.pin_type.to_string() != prev_pin_index.to_string() && (current_pin.other_gate_index != Some(spatial_gate_index.index) || current_pin.other_pin_index != Some(index)) {
+                                            circuit.connect_wire(prev_gate_index, spatial_gate_index.index, prev_pin_index, index);
+                                            starting_gate_index = None;
+                                            starting_pin_index = None;
+                                            starting_pin_type = None;
+                                        }
+                                    }
+                                    (None, None, None) => {
+                                        starting_gate_index = Some(spatial_gate_index.index);
+                                        starting_pin_index = Some(index);
+                                        starting_pin_type = Some(pin_block.pin_type);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            None => {}
+                        }
                     }
                 }
             }
@@ -150,6 +186,13 @@ async fn main() {
         }
 
         log_msg = format!("{} gate count: {} |\n", log_msg, tree.iter().count());
+
+        match (starting_gate_index, starting_pin_index, starting_pin_type) {
+            (Some(a), Some(b), Some(c)) => {
+                log_msg = format!("{} st_gate_index: {} st_pin_index: {} st_pin_type {}|\n", log_msg, a, b, c.to_string());
+            }
+            _ => {}
+        }
 
         if is_mouse_button_pressed(MouseButton::Left) {
             // remember the world point under cursor when starting drag

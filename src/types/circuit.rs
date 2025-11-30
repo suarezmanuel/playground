@@ -39,44 +39,38 @@ impl Circuit {
     // }
 
     pub fn evaluate(&self, gate: &Gate) -> bool {
-        // make sure somehow that the input is always set-up
-        match (&gate.gate_type, &gate.input.len()) {
+        // each wire sample should be false if theres no wire.
+        let get_pin = |index: usize| -> bool {
+            gate.input[index].wire_index
+                .map(|idx| self.wires_read[idx]) // Transform index -> value
+                .unwrap_or(false)                // Handle None -> false
+        };
+
+        match (&gate.gate_type, gate.input.len()) {
             (GateType::NOT, 1) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                !a
+                !get_pin(0)
             }
             (GateType::OR, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                a | b
+                get_pin(0) | get_pin(1)
             }
             (GateType::XOR, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                a ^ b
+                get_pin(0) ^ get_pin(1)
             }
             (GateType::XNOR, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                !(a ^ b)
+                !(get_pin(0) ^ get_pin(1))
             }
             (GateType::NOR, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                !(a | b)
+                !(get_pin(0) | get_pin(1))
             }
             (GateType::AND, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                a & b
+                get_pin(0) & get_pin(1)
             }
             (GateType::NAND, 2) => {
-                let a = self.wires_read[gate.input[0].wire_index];
-                let b = self.wires_read[gate.input[1].wire_index];
-                !(a & b)
+                !(get_pin(0) & get_pin(1))
             }
             (GateType::PWR, 0) => true,
-            (GateType::GND, 1) => false,
+            // Assuming GND input might be connected or floating, but output is always false
+            (GateType::GND, _) => false, 
             _ => panic!("Unsupported gate type or input configuration"),
         }
     }
@@ -113,11 +107,11 @@ impl Circuit {
         // wire goes from 'output_gate' to 'input_gate'
         let wire_index = self.wires_read.len() - 1;
         // connect output to wire
-        self.gates[output_gate_index].output[output_pin_index].output_gate = input_gate_index;
-        self.gates[output_gate_index].output[output_pin_index].wire_index = wire_index;
+        self.gates[output_gate_index].output[output_pin_index].other_gate_index = Some(input_gate_index);
+        self.gates[output_gate_index].output[output_pin_index].wire_index = Some(wire_index);
         // connect input to wire
-        self.gates[input_gate_index].input[input_pin_index].input_gate = output_gate_index;
-        self.gates[input_gate_index].input[input_pin_index].wire_index = wire_index;
+        self.gates[input_gate_index].input[input_pin_index].other_gate_index = Some(output_gate_index);
+        self.gates[input_gate_index].input[input_pin_index].wire_index = Some(wire_index);
     }
 
     pub fn tick(&mut self) {
@@ -132,11 +126,21 @@ impl Circuit {
             let result = self.evaluate(gate);
             // only do outputs by the first bit for now
             let output_wire_index = gate.output[0].wire_index;
-            if changed_wires[output_wire_index] && self.wires_write[output_wire_index] == !result {
-                panic!("short circuit on wire {}", output_wire_index);
+
+            match output_wire_index {
+                Some(index) => {
+                    if changed_wires[index] && self.wires_write[index] == !result {
+                        panic!("short circuit on wire {}", index);
+                    }
+                    self.wires_write[index] = result;
+                    changed_wires[index] = true;
+                }
+                None => {
+                    // dont write to a wire if there's no connected wire
+                }
             }
-            self.wires_write[output_wire_index] = result;
-            changed_wires[output_wire_index] = true;
+            
+            
         }
 
         // check if emulation is done (add output test in future)
@@ -150,18 +154,9 @@ impl Circuit {
         std::mem::swap(&mut self.wires_read, &mut self.wires_write);
     }
 
-    pub fn add_gate(&mut self, mut gate : Gate) -> usize {
+    pub fn add_gate(&mut self, gate : Gate) -> usize {
         // not necessarily in topological order
         let index = self.gates.len();
-
-        for pin in &mut gate.input {
-            pin.output_gate = index;
-        }
-
-        for pin in &mut gate.output {
-            pin.input_gate = index;
-        }
-
         self.gates.push(gate);
         return index;
     }
@@ -200,17 +195,24 @@ impl Circuit {
             // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
             let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
             // only draw output -> input wires, otherwise double draw calls
-            let spatial_input_pin_blocks = gate.get_side_pins_blocks(PinType::Input);
+            // let spatial_input_pin_blocks = gate.get_side_pins_blocks(PinType::Input);
             let spatial_output_pin_blocks = gate.get_side_pins_blocks(PinType::Output);
            
-            for output_pin_block in spatial_output_pin_blocks {
-                let current_pin = gate.output[output_pin_block.index].clone();
-                let input_pin_block = spatial_input_pin_blocks[current_pin.output_index].clone();
+            for (current_pin_index, current_pin_block) in spatial_output_pin_blocks.iter().enumerate() {
+                let other_gate_index = gate.output[current_pin_index].other_gate_index;
 
-                let Vec2 {x: output_center_x, y: output_center_y} = output_pin_block.rect.center();
-                let Vec2 {x: input_center_x, y: input_center_y} = input_pin_block.rect.center();
+                match other_gate_index {
+                    Some(index) => {
+                        let spatial_input_pin_blocks = self.gates[index].get_side_pins_blocks(PinType::Input);
+                        let other_pin_block = spatial_input_pin_blocks[current_pin_index].clone();
 
-                draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
+                        let Vec2 {x: output_center_x, y: output_center_y} = current_pin_block.rect.center();
+                        let Vec2 {x: input_center_x, y: input_center_y} = other_pin_block.rect.center();
+
+                        draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
+                    }
+                    None => {}
+                }
             }
            
             // draw blocks

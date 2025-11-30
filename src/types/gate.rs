@@ -16,15 +16,21 @@ impl Gate {
     pub fn new(rect: Rect, gate_type: GateType) -> Gate {
         let input = match gate_type {
             GateType::PWR => Vec::new(),
-            GateType::NOT | GateType::GND => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
-            // GateType::NOT | GateType::GND => vec![Pin{other_pin_index: None, other_gate_index: None, wire_index: None}]};
+            GateType::NOT | GateType::GND => {
+                vec![Pin{other_pin_index: None, other_gate_index: None, wire_index: None}]
+            }
             // the gates for pins need to be assigned by circuit
-            _ => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}, Pin{input_index: 1, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
+            _ => {
+                vec![
+                Pin{other_pin_index: None, other_gate_index: None, wire_index: None}, 
+                Pin{other_pin_index: None, other_gate_index: None, wire_index: None}
+                ]
+            }
         };
 
         let output = match gate_type {
             GateType::GND => Vec::new(),
-            _ => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
+            _ => vec![Pin{other_pin_index: None, other_gate_index: None, wire_index: None}],
         };
 
         return Gate {
@@ -33,6 +39,13 @@ impl Gate {
             output: output,
             gate_type: gate_type,
         };
+    }
+
+    pub fn get_pin(&self, pin_index: usize, pin_type: PinType) -> Pin {
+        return match pin_type {
+            PinType::Input  => { self.input[pin_index].clone() }
+            PinType::Output => { self.output[pin_index].clone() }
+        }
     }
 
     pub fn get_side_pins_blocks(
