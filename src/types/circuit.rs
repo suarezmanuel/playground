@@ -2,13 +2,14 @@ use macroquad::prelude::*;
 use crate::types::gate::*;
 use crate::types::gate_type::*;
 use crate::types::pins::*;
+use crate::types::pin_type::*;
 use crate::utils::*;
 
 pub struct Circuit {
     pub emulation_done: bool,
     pub wires_read: Vec<bool>,
     pub wires_write: Vec<bool>,
-    pub gates: Vec<Gate>, // make sure this array is ordered topologically
+    pub gates: Vec<Gate>,
 }
 
 impl Circuit {
@@ -21,151 +22,102 @@ impl Circuit {
             gates: Vec::new(),
         };
     }
-    // wires always start as false.
-    pub fn new_wire(&mut self) -> usize {
-        self.wires_read.push(false);
-        self.wires_write.push(false); // to make them equal in length so no problems when swapping
-        self.wires_read.len() - 1
-    }
     // make it so a 'NOT' gate automatically makes the wire yellow.
-    pub fn set_wire(&mut self, wire_index: usize, value: bool) {
-        if !(0..self.wires_read.len()).contains(&(wire_index)) {
-            panic!("invalid wire_index {} for wires_read", wire_index)
-        }
-        self.wires_read[wire_index] = value;
-        self.wires_write[wire_index] = value;
-    }
+    // pub fn set_wire(&mut self, wire_index: usize, value: bool) {
+    //     if !(0..self.wires_read.len()).contains(&(wire_index)) {
+    //         panic!("invalid wire_index {} for wires_read", wire_index)
+    //     }
+    //     self.wires_read[wire_index] = value;
+    //     self.wires_write[wire_index] = value;
+    // }
 
-    pub fn get_wire(&mut self, wire_index: usize) -> bool {
-        if !(0..self.wires_read.len()).contains(&(wire_index)) {
-            panic!("invalid wire_index {} for wires_read", wire_index)
-        }
-        return self.wires_read[wire_index];
-    }
+    // pub fn get_wire(&mut self, wire_index: usize) -> bool {
+    //     if !(0..self.wires_read.len()).contains(&(wire_index)) {
+    //         panic!("invalid wire_index {} for wires_read", wire_index)
+    //     }
+    //     return self.wires_read[wire_index];
+    // }
 
     pub fn evaluate(&self, gate: &Gate) -> bool {
         // make sure somehow that the input is always set-up
-        match (&gate.gate_type, &gate.input) {
-            (GateType::NOT, Pins::Single(input1)) => {
-                let a = self.wires_read[*input1];
+        match (&gate.gate_type, &gate.input.len()) {
+            (GateType::NOT, 1) => {
+                let a = self.wires_read[gate.input[0].wire_index];
                 !a
             }
-            (GateType::OR, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::OR, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 a | b
             }
-            (GateType::XOR, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::XOR, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 a ^ b
             }
-            (GateType::XNOR, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::XNOR, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 !(a ^ b)
             }
-            (GateType::NOR, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::NOR, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 !(a | b)
             }
-            (GateType::AND, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::AND, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 a & b
             }
-            (GateType::NAND, Pins::Dual(input1, input2)) => {
-                let a = self.wires_read[*input1];
-                let b = self.wires_read[*input2];
+            (GateType::NAND, 2) => {
+                let a = self.wires_read[gate.input[0].wire_index];
+                let b = self.wires_read[gate.input[1].wire_index];
                 !(a & b)
             }
-            (GateType::PWR, Pins::Empty) => true,
-            (GateType::GND, Pins::Single(_)) => false,
+            (GateType::PWR, 0) => true,
+            (GateType::GND, 1) => false,
             _ => panic!("Unsupported gate type or input configuration"),
         }
     }
 
     pub fn connect_wire(
         &mut self,
-        wire: usize,
-        out_gate_index: usize,
-        in_gate_index: usize,
-        outpin_index: u32,
-        inpin_index: u32,
+        output_gate_index: usize,
+        input_gate_index: usize,
+        output_pin_index: usize,
+        input_pin_index: usize,
     ) {
-        // the terms input / output are confusing here, they are from the pov of each gate
 
         {
-            let out_gate = &mut self.gates[out_gate_index];
-            // wire input coming from gate, allow for input from an 'electricity source' (not a gate)
-            out_gate.output = Pins::Single(wire);
+            if input_gate_index > self.gates.len() {
+                panic!("invalid input_gate_index {} for self.gates of length {}", input_pin_index, self.gates.len());
+            } 
+            if output_gate_index > self.gates.len() {
+                panic!("invalid output_gate_index {} for self.gates of length {}", output_pin_index, self.gates.len());
+            }
+
+            let output_gate = &self.gates[output_gate_index];
+            let input_gate = &self.gates[input_gate_index];
+
+            if input_pin_index > input_gate.input.len() {
+                panic!("invalid input_pin_index {} for input_gate of length {}", input_pin_index, input_gate.input.len());
+            } 
+            if output_pin_index > output_gate.output.len() {
+                panic!("invalid output_pin_index {} for output_gate of length {}", output_pin_index, output_gate.output.len());
+            }
         }
 
-        {
-            let in_gate = &mut self.gates[in_gate_index];
-            // wire output going to gate pin, allow for output to "air"
-            match &mut in_gate.input {
-                Pins::Empty => {
-                    panic!("cannot connect wire to gate with no input pins");
-                }
-                Pins::Single(input1) => {
-                    if inpin_index != 0 {
-                        panic!("invalid inpin_index {} for gate", inpin_index)
-                    }
-                    *input1 = wire;
-                }
-                Pins::Dual(input1, input2) => {
-                    if !(0..=1).contains(&(inpin_index as usize)) {
-                        panic!("invalid inpin_index {} for gate", inpin_index)
-                    };
-                    match inpin_index {
-                        0 => {
-                            *input1 = wire;
-                        }
-                        1 => *input2 = wire,
-                        _ => {}
-                    };
-                }
-                Pins::Triple(input1, input2, input3) => {
-                    if !(0..=2).contains(&(inpin_index as usize)) {
-                        panic!("invalid inpin_index {} for gate", inpin_index)
-                    }
-                    *input1 = wire;
-                    match inpin_index {
-                        0 => {
-                            *input1 = wire;
-                        }
-                        1 => *input2 = wire,
-                        2 => *input3 = wire,
-                        _ => {}
-                    };
-                }
-                Pins::Variadic(vec) => {
-                    if !(0..vec.len()).contains(&(inpin_index as usize)) {
-                        panic!("invalid inpin_index {} for gate", inpin_index)
-                    }
-                    vec[inpin_index as usize] = wire;
-                }
-            }
-        }
-        {
-            let out_gate = &mut self.gates[out_gate_index];
-            match &mut out_gate.output {
-                Pins::Empty => {
-                    panic!("cannot connect wire to gate with no output pins");
-                }
-                Pins::Single(output1) => {
-                    if outpin_index != 0 {
-                        panic!("invalid outpin_index {} for gate", outpin_index)
-                    }
-                    *output1 = wire;
-                }
-                _ => {
-                    panic!("only single output pins supported for now");
-                }
-            }
-        }
+        self.wires_read.push(false);
+        self.wires_write.push(false); // to make them equal in length so no problems when swapping
+        // wire goes from 'output_gate' to 'input_gate'
+        let wire_index = self.wires_read.len() - 1;
+        // connect output to wire
+        self.gates[output_gate_index].output[output_pin_index].output_gate = input_gate_index;
+        self.gates[output_gate_index].output[output_pin_index].wire_index = wire_index;
+        // connect input to wire
+        self.gates[input_gate_index].input[input_pin_index].input_gate = output_gate_index;
+        self.gates[input_gate_index].input[input_pin_index].wire_index = wire_index;
     }
 
     pub fn tick(&mut self) {
@@ -178,15 +130,13 @@ impl Circuit {
         // read
         for gate in &self.gates {
             let result = self.evaluate(gate);
-            let output_bit = match &gate.output {
-                Pins::Single(output1) => *output1,
-                _ => panic!("only single output pins supported for now"),
-            };
-            if changed_wires[output_bit] && self.wires_write[output_bit] == !result {
-                panic!("short circuit on wire {}", output_bit);
+            // only do outputs by the first bit for now
+            let output_wire_index = gate.output[0].wire_index;
+            if changed_wires[output_wire_index] && self.wires_write[output_wire_index] == !result {
+                panic!("short circuit on wire {}", output_wire_index);
             }
-            self.wires_write[output_bit] = result;
-            changed_wires[output_bit] = true;
+            self.wires_write[output_wire_index] = result;
+            changed_wires[output_wire_index] = true;
         }
 
         // check if emulation is done (add output test in future)
@@ -200,10 +150,20 @@ impl Circuit {
         std::mem::swap(&mut self.wires_read, &mut self.wires_write);
     }
 
-    pub fn add_gate(&mut self, gate : Gate) -> usize {
+    pub fn add_gate(&mut self, mut gate : Gate) -> usize {
         // not necessarily in topological order
+        let index = self.gates.len();
+
+        for pin in &mut gate.input {
+            pin.output_gate = index;
+        }
+
+        for pin in &mut gate.output {
+            pin.input_gate = index;
+        }
+
         self.gates.push(gate);
-        return self.gates.len()-1;
+        return index;
     }
 
     pub fn draw_gates(&self, camera : &Camera2D) {
@@ -236,7 +196,24 @@ impl Circuit {
                 );
             }
 
-            let pin_blocks = gate.clone().get_pins_blocks(); // this is kinda scuffed
+            // draw wires
+            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
+            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
+            // only draw output -> input wires, otherwise double draw calls
+            let spatial_input_pin_blocks = gate.get_side_pins_blocks(PinType::Input);
+            let spatial_output_pin_blocks = gate.get_side_pins_blocks(PinType::Output);
+           
+            for output_pin_block in spatial_output_pin_blocks {
+                let current_pin = gate.output[output_pin_block.index].clone();
+                let input_pin_block = spatial_input_pin_blocks[current_pin.output_index].clone();
+
+                let Vec2 {x: output_center_x, y: output_center_y} = output_pin_block.rect.center();
+                let Vec2 {x: input_center_x, y: input_center_y} = input_pin_block.rect.center();
+
+                draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
+            }
+           
+            // draw blocks
             for pin_block in pin_blocks {
                 let pin_rect = pin_block.rect;
                 if intersects(pin_rect, camera_view_rect) {

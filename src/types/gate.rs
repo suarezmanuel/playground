@@ -15,14 +15,16 @@ pub struct Gate {
 impl Gate {
     pub fn new(rect: Rect, gate_type: GateType) -> Gate {
         let input = match gate_type {
-            GateType::PWR => Pins::Empty,
-            GateType::NOT | GateType::GND => Pins::Single(0),
-            _ => Pins::Dual(0, 0),
+            GateType::PWR => Vec::new(),
+            GateType::NOT | GateType::GND => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
+            // GateType::NOT | GateType::GND => vec![Pin{other_pin_index: None, other_gate_index: None, wire_index: None}]};
+            // the gates for pins need to be assigned by circuit
+            _ => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}, Pin{input_index: 1, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
         };
 
         let output = match gate_type {
-            GateType::GND => Pins::Empty,
-            _ => Pins::Single(0),
+            GateType::GND => Vec::new(),
+            _ => vec![Pin{input_index: 0, output_index: 0, input_gate: 0, output_gate: 0, wire_index: 0}],
         };
 
         return Gate {
@@ -33,28 +35,33 @@ impl Gate {
         };
     }
 
-    pub fn get_pin_count(pins: Pins) -> usize {
-        return match pins {
-            Pins::Single(_) => 1,
-            Pins::Dual(_, _) => 2,
-            Pins::Triple(_, _, _) => 3,
-            Pins::Variadic(vec) => vec.len(),
-            _ => 0,
-        };
-    }
-
-    pub fn get_side_pins_rects(
-        pins: Pins,
+    pub fn get_side_pins_blocks(
+        &self,
         pin_type: PinType,
-        tl_x: f32,
-        tl_y: f32,
     ) -> Vec<SpatialPinIndex> {
-        let mut rects: Vec<SpatialPinIndex> = Vec::new();
 
-        let pin_count = Self::get_pin_count(pins);
+        let tl_x;
+        let tl_y;
+        let pin_count: usize;
+
+        match pin_type {
+            PinType::Input => {
+                tl_x = self.rect.x;
+                tl_y = self.rect.y;
+                pin_count = self.input.len();
+            }
+            PinType::Output => {
+                tl_x = self.rect.x + self.rect.w - 6.0;
+                tl_y = self.rect.y;
+                pin_count = self.output.len();
+            }
+        }
+
         if pin_count > 8 {
             println!("WARNING: i hope youre not using gates that are 64x64");
         }
+
+        let mut rects: Vec<SpatialPinIndex> = Vec::new();
         let pin_pixel_side_len = 6.0;
         let spaces_count = (pin_count + 1) as f32;
         let space_pixel_len = (64.0 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
@@ -79,19 +86,13 @@ impl Gate {
     pub fn get_pins_blocks(self) -> Vec<SpatialPinIndex> {
         let mut rects: Vec<SpatialPinIndex> = Vec::new();
         // input pins
-        rects.extend(Self::get_side_pins_rects(
-            self.input.clone(),
+        rects.extend(self.get_side_pins_blocks(
             PinType::Input,
-            self.rect.x,
-            self.rect.y,
         ));
 
         // output pins
-        rects.extend(Self::get_side_pins_rects(
-            self.output.clone(),
+        rects.extend(self.get_side_pins_blocks(
             PinType::Output,
-            self.rect.x + self.rect.w - 6.0,
-            self.rect.y,
         ));
 
         return rects;

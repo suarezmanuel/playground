@@ -1,12 +1,10 @@
 use macroquad::prelude::*;
 use std::time::SystemTime;
 mod events;
-mod gates;
 mod types;
 mod ui;
 mod utils;
 use ui::draw_ui;
-use utils::*;
 use rstar::{RTree, RTreeObject, AABB, PointDistance};
 use crate::types::circuit::*;
 use crate::types::gate_type::*;
