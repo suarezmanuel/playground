@@ -7,8 +7,8 @@ pub enum PinType {
 impl PinType {
     pub fn to_string(self) -> String {
         return match self {
-            PinType::Input => {"input".to_owned()}
-            PinType::Output => {"output".to_owned()}
-        }
+            PinType::Input => "input".to_owned(),
+            PinType::Output => "output".to_owned(),
+        };
     }
 }
