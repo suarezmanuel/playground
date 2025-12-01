@@ -76,6 +76,9 @@ async fn main() {
     let mut start_pin_index: Option<usize> = None;
     let mut start_pin_type: Option<PinType> = None;
 
+    let mut emulate = false;
+    let mut last_tick_time = SystemTime::now();
+
     loop {
 
         let mut log_msg: String = "".to_string();
@@ -115,7 +118,13 @@ async fn main() {
         } else if is_key_pressed(KeyCode::Key9) {
             current_selection = GateType::GND;
         } 
+
+        if is_key_pressed(KeyCode::R) {
+           emulate = !emulate; 
+        }
         
+        log_msg = format!("{log_msg} emulate {emulate} |");
+
         match cursor_item {
             //  print the id of the hovering element and the element count
             Some(hover_spatial_gate) => {
@@ -310,6 +319,15 @@ async fn main() {
             }, 
             _ => {}
         }
+
+        if emulate && now last_tick_time.elapsed().unwrap().as_millis() as i32  {
+            circuit.tick();
+        }
+
+        let total_time_elapsed = now.elapsed().unwrap().as_millis() as i32;
+        fps = (fps_rest * 1000) / total_time_elapsed;
+        counter = 0;
+        now = SystemTime::now();
         
         circuit.draw_gates(&camera);
         circuit.draw_wires(&camera);

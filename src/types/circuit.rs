@@ -274,7 +274,12 @@ impl Circuit {
                         let Vec2 {x: output_center_x, y: output_center_y} = current_gate.get_pin_block(current_pin.clone()).rect.center();
                         let Vec2 {x: input_center_x, y: input_center_y} = other_gate.get_pin_block(other_pin).rect.center();
 
-                        draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
+                        let wire_color = match self.wires_read[current_pin.wire_index.unwrap()] {
+                            true => { YELLOW }
+                            false => { BLACK }
+                        };
+
+                        draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, wire_color);
                     }
                     _ => {}
                 }
