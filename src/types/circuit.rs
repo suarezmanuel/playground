@@ -9,6 +9,7 @@ pub struct Circuit {
     pub emulation_done: bool,
     pub wires_read: Vec<bool>,
     pub wires_write: Vec<bool>,
+    pub wires_freed: Vec<bool>,
     pub gates: Vec<Gate>,
 }
 
@@ -20,6 +21,7 @@ impl Circuit {
             wires_read: vec![],
             wires_write: vec![],
             gates: Vec::new(),
+            wires_freed: vec![] // if wires_read gets really big and then all the wires are deleted, wires_freed will be wasted memory. a compression algo is needed
         };
     }
     // make it so a 'NOT' gate automatically makes the wire yellow.
@@ -75,6 +77,30 @@ impl Circuit {
         }
     }
 
+    pub fn add_wire(&mut self) -> usize {
+        for (index, value) in self.wires_freed.iter().enumerate() {
+            if *value == true {
+                self.wires_freed[index] = false;
+                self.wires_read.insert(index, false);
+                self.wires_write.insert(index, false);
+                return index;
+            }
+        }
+        self.wires_read.push(false);
+        self.wires_write.push(false); // to make them equal in length so no problems when swapping
+        self.wires_freed.push(false);
+        return self.wires_read.len()-1;
+    }
+
+    pub fn remove_wire(&mut self, index: usize) {
+        if self.wires_freed[index] == true {
+            panic!("double free of wire at index {index}");
+        }
+        self.wires_freed[index] = true;
+        self.wires_read.remove(index);
+        self.wires_write.remove(index);
+    }
+
     pub fn connect_wire(
         &mut self,
         from_gate_index: usize,
@@ -85,9 +111,7 @@ impl Circuit {
         to_pin_type: PinType
     ) {
 
-        self.wires_read.push(false);
-        self.wires_write.push(false); // to make them equal in length so no problems when swapping
-        let wire_index = self.wires_read.len() - 1;
+        let wire_index = self.add_wire();
 
         {
             let gate = &mut self.gates[from_gate_index];
@@ -172,6 +196,7 @@ impl Circuit {
     }
 
     pub fn draw_gates(&self, camera : &Camera2D) {
+    
         set_camera(camera);
 
         for gate in &self.gates {
@@ -230,4 +255,90 @@ impl Circuit {
             }
         }
     }
+
+    pub fn draw_wires(&self, camera : &Camera2D) {
+
+        set_camera(camera);
+
+        for gate in &self.gates {
+            // check intersection of wire with screen (later)
+            // draw wires
+            for current_pin in gate.output.iter() {
+                match (current_pin.other_gate_index, current_pin.other_pin_index, current_pin.other_pin_type) {
+                    // we only connect outputs to inputs for now
+                    (Some(other_gate_index),  Some(other_pin_index), Some(PinType::Input)) => {
+                        let current_gate = gate;
+                        let other_gate = self.gates[other_gate_index].clone();
+                        let other_pin = other_gate.get_pin(other_pin_index, PinType::Input);
+
+                        let Vec2 {x: output_center_x, y: output_center_y} = current_gate.get_pin_block(current_pin.clone()).rect.center();
+                        let Vec2 {x: input_center_x, y: input_center_y} = other_gate.get_pin_block(other_pin).rect.center();
+
+                        draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
+                    }
+                    _ => {}
+                }
+            }
+           
+        }
+    }
+    
+    pub fn draw_pins(&self, camera : &Camera2D) {
+        
+        set_camera(camera);
+
+        for gate in &self.gates {
+            let camera_view_rect = camera_view_rect(&camera);
+
+            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
+            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
+            // draw blocks
+            for pin_block in pin_blocks {
+                let pin_rect = pin_block.rect;
+                if intersects(pin_rect, camera_view_rect) {
+                    draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+                }
+            }
+        }
+    }
+
+    pub fn draw_mouse_wire(&self, camera: &Camera2D, gate_index: Option<usize>, pin_index: Option<usize>, pin_type: Option<PinType>) {
+
+        match (gate_index, pin_index, pin_type) {
+            (Some(gate_index), Some(pin_index), Some(pin_type)) => {
+                let gate = self.gates[gate_index].clone(); // this is fine because we only read and don't write
+                let block = gate.get_pin_block(gate.get_pin(pin_index, pin_type));
+                let Vec2{x: center_x, y: center_y} = block.rect.center();
+                let mouse_world = camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
+            }
+            _ => {}
+        };
+    }
+
+    pub fn draw_gate_over_mouse(&self, camera: &Camera2D, rect : Rect, gate_type : &GateType) {
+        // just to be sure
+        if intersects(rect, camera_view_rect(camera)) {
+            let color = GateType::color(gate_type);
+            let text = GateType::text(gate_type);
+
+            draw_rectangle(rect.x, rect.y, rect.w, rect.h, color.with_alpha(0.5));
+            let dims = measure_text(text, None, 32, 1.0);
+            let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
+            let ty = rect.y + rect.h * 0.35 + dims.height * 0.5; 
+
+            draw_text_ex(
+                text, 
+                tx, 
+                ty, 
+                TextParams {
+                    font_size: 32.0 as u16,
+                    font_scale: -1.0,
+                    font_scale_aspect: -1.0, 
+                    color: BLACK.with_alpha(0.5),
+                    ..Default::default()
+                }
+            );
+        }     
+    }   
 }

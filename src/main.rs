@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use std::thread::current;
 use std::time::SystemTime;
 mod events;
 mod types;
@@ -95,28 +96,24 @@ async fn main() {
         let closest_item = tree.nearest_neighbor(&[mouse_world.x, mouse_world.y]).copied();
         let cursor_item = tree.locate_at_point(&[mouse_world.x, mouse_world.y]).copied();
 
-        if is_key_pressed(KeyCode::Key0) {
+        if is_key_pressed(KeyCode::Key1) {
             current_selection = GateType::NOT;
-        } else if is_key_pressed(KeyCode::Key1) {
-            current_selection = GateType::OR;
         } else if is_key_pressed(KeyCode::Key2) {
-            current_selection = GateType::XOR;
+            current_selection = GateType::OR;
         } else if is_key_pressed(KeyCode::Key3) {
-            current_selection = GateType::NOR;
+            current_selection = GateType::XOR;
         } else if is_key_pressed(KeyCode::Key4) {
-            current_selection = GateType::XNOR;
+            current_selection = GateType::NOR;
         } else if is_key_pressed(KeyCode::Key5) {
-            current_selection = GateType::AND;
+            current_selection = GateType::XNOR;
         } else if is_key_pressed(KeyCode::Key6) {
-            current_selection = GateType::NAND;
+            current_selection = GateType::AND;
         } else if is_key_pressed(KeyCode::Key7) {
-            current_selection = GateType::PWR;
+            current_selection = GateType::NAND;
         } else if is_key_pressed(KeyCode::Key8) {
-            current_selection = GateType::GND;
+            current_selection = GateType::PWR;
         } else if is_key_pressed(KeyCode::Key9) {
-            start_gate_index = None;
-            start_pin_index = None;
-            start_pin_type = None;
+            current_selection = GateType::GND;
         } 
         
         match cursor_item {
@@ -138,11 +135,59 @@ async fn main() {
                         hover_pin_type = Some(pin_block.pin_type);
                     }
 
-                    if is_mouse_button_pressed(MouseButton::Left) {
-                        match (hover_pin_index, hover_pin_type, hover_spatial_gate.index) {
-                            (Some(to_pin_index), Some(to_pin_type), to_gate_index) => {
+                    match (hover_pin_index, hover_pin_type, hover_spatial_gate.index) {
+                        (Some(to_pin_index), Some(to_pin_type), to_gate_index) => {
+
+                            // cancel start of cable
+                            // delete existing cable
+                            if is_mouse_button_pressed(MouseButton::Right) {
+
+                                let to_pin = circuit.gates[to_gate_index].get_pin(to_pin_index, to_pin_type);
+                                match (to_pin.other_gate_index, to_pin.other_pin_index, to_pin.other_pin_type) {
+                                    (Some(other_gate_index), Some(other_pin_index), Some(other_pin_type)) => {
+
+                                        circuit.remove_wire(circuit.gates[to_gate_index].get_pin(to_pin_index, to_pin_type).wire_index.unwrap());
+                                        
+                                        {
+                                            let gate = &mut circuit.gates[other_gate_index];
+                                            let pins = match other_pin_type {
+                                                PinType::Input => { &mut gate.input }
+                                                PinType::Output => { &mut gate.output }
+                                            };
+
+                                            let pin = &mut pins[other_pin_index];
+                                            pin.other_gate_index = None;
+                                            pin.other_pin_index = None;
+                                            pin.other_pin_type = None;
+                                            pin.wire_index = None;
+                                        }
+
+                                        {
+                                            let gate = &mut circuit.gates[to_gate_index];
+                                            let pins = match to_pin_type {
+                                                PinType::Input => { &mut gate.input }
+                                                PinType::Output => { &mut gate.output }
+                                            };
+
+                                            let pin = &mut pins[to_pin_index];
+                                            pin.other_gate_index = None;
+                                            pin.other_pin_index = None;
+                                            pin.other_pin_type = None;
+                                            pin.wire_index = None;
+                                        }
+                                    }
+
+                                    _ => {}
+                                }
+
+                                start_gate_index = None;
+                                start_pin_index = None;
+                                start_pin_type = None;
+                            }
+                            else if is_mouse_button_pressed(MouseButton::Left) {
                                 match (start_pin_index, start_pin_type, start_gate_index) {
                                     (Some(from_pin_index), Some(from_pin_type), Some(from_gate_index)) => {
+                                        // new cable
                                         // only use 'get_pin' to get values not to set them
                                         let from_pin = circuit.gates[from_gate_index].get_pin(from_pin_index, from_pin_type);
                                         let to_pin = circuit.gates[to_gate_index].get_pin(to_pin_index, to_pin_type);
@@ -166,8 +211,8 @@ async fn main() {
                                     _ => {}
                                 }
                             }
-                            _ => {}
                         }
+                        _ => {}
                     }
                 }
             }
@@ -194,6 +239,12 @@ async fn main() {
         }
 
         log_msg = format!("{} gate count: {} |\n", log_msg, tree.iter().count());
+
+        if is_mouse_button_pressed(MouseButton::Right) {
+            start_gate_index = None;
+            start_pin_index = None;
+            start_pin_type = None;
+        }
 
         match (start_gate_index, start_pin_index, start_pin_type) {
             (Some(a), Some(b), Some(c)) => {
@@ -249,10 +300,26 @@ async fn main() {
 
         utils::draw_grid(&camera, base_zoom);
 
+        // draw transparent gate over mouse.
+        // doesn't matter if its drawn because a gate will be drawn over it
+        match (start_gate_index, start_pin_index, start_pin_type) {
+            (None, None, None) => {
+                let mouse_pos_world = camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                let gate_rect = Rect { w: 64.0, h: 64.0, x: (mouse_pos_world.x / 64.0).floor() * 64.0, y: (mouse_pos_world.y / 64.0).floor() * 64.0 };
+                circuit.draw_gate_over_mouse(&camera, gate_rect, &current_selection);
+            }, 
+            _ => {}
+        }
+        
         circuit.draw_gates(&camera);
+        circuit.draw_wires(&camera);
+        circuit.draw_pins(&camera);
+        circuit.draw_mouse_wire(&camera, start_gate_index, start_pin_index, start_pin_type);
 
         // println!("{}", draw_counter);
         set_default_camera();
+        
+        
         draw_text(&format!("{}", fps), 20.0, 30.0, 40.0, WHITE);
         // Advance to the next frame
         draw_ui(log_msg);
