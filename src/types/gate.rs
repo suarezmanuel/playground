@@ -99,8 +99,8 @@ impl Gate {
                 x: tl_x,
                 // camera is upside down
                 y: tl_y + GATE_SIZE as f32
-                    - space_pixel_len * ((pin.index + 1) as f32)
-                    - pin_pixel_side_len * (pin.index as f32),
+                    - space_pixel_len * (pin.index as f32 + 1.0)
+                    - pin_pixel_side_len * (pin.index as f32 + 1.0),
                 w: pin_pixel_side_len,
                 h: pin_pixel_side_len,
             },
