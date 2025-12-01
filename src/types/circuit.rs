@@ -24,21 +24,6 @@ impl Circuit {
             wires_freed: vec![], // if wires_read gets really big and then all the wires are deleted, wires_freed will be wasted memory. a compression algo is needed
         };
     }
-    // make it so a 'NOT' gate automatically makes the wire yellow.
-    // pub fn set_wire(&mut self, wire_index: usize, value: bool) {
-    //     if !(0..self.wires_read.len()).contains(&(wire_index)) {
-    //         panic!("invalid wire_index {} for wires_read", wire_index)
-    //     }
-    //     self.wires_read[wire_index] = value;
-    //     self.wires_write[wire_index] = value;
-    // }
-
-    // pub fn get_wire(&mut self, wire_index: usize) -> bool {
-    //     if !(0..self.wires_read.len()).contains(&(wire_index)) {
-    //         panic!("invalid wire_index {} for wires_read", wire_index)
-    //     }
-    //     return self.wires_read[wire_index];
-    // }
 
     pub fn evaluate(&self, gate: &Gate) -> bool {
         // each wire sample should be false if theres no wire.
@@ -131,6 +116,13 @@ impl Circuit {
             pin.other_pin_index = Some(from_pin_index);
             pin.other_pin_type = Some(from_pin_type);
             pin.wire_index = Some(wire_index);
+        }
+    }
+
+    pub fn reset_wires(&mut self) {
+        for index in 0..self.wires_read.len() {
+            self.wires_read[index] = false;
+            self.wires_write[index] = false;
         }
     }
 
