@@ -4,6 +4,9 @@ use crate::types::pins::*;
 use crate::types::spatial_pin_index::*;
 use macroquad::prelude::*;
 
+const GATE_SIZE: u16 = 64;
+const PIN_SIZE: u16 = 6;
+
 #[derive(Clone)]
 pub struct Gate {
     pub rect: Rect,
@@ -82,9 +85,9 @@ impl Gate {
             PinType::Output => self.output.len(),
         };
 
-        let pin_pixel_side_len = 6.0;
+        let pin_pixel_side_len = PIN_SIZE as f32;
         let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (64.0 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
 
         let (tl_x, tl_y) = match pin.pin_type {
             PinType::Input => (self.rect.x, self.rect.y),
@@ -95,7 +98,7 @@ impl Gate {
             rect: Rect {
                 x: tl_x,
                 // camera is upside down
-                y: tl_y + 64.0
+                y: tl_y + GATE_SIZE as f32
                     - space_pixel_len * ((pin.index + 1) as f32)
                     - pin_pixel_side_len * (pin.index as f32),
                 w: pin_pixel_side_len,
@@ -118,7 +121,7 @@ impl Gate {
                 pin_count = self.input.len();
             }
             PinType::Output => {
-                tl_x = self.rect.x + self.rect.w - 6.0;
+                tl_x = self.rect.x + self.rect.w - PIN_SIZE as f32;
                 tl_y = self.rect.y;
                 pin_count = self.output.len();
             }
@@ -129,23 +132,23 @@ impl Gate {
         }
 
         let mut rects: Vec<SpatialPinIndex> = Vec::new();
-        let pin_pixel_side_len = 6.0;
+        let pin_pixel_side_len = PIN_SIZE as f32;
         let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (64.0 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
 
         for i in 1..=pin_count {
             rects.push(SpatialPinIndex {
                 rect: Rect {
                     x: tl_x,
                     // camera is upside down
-                    y: tl_y + 64.0
+                    y: tl_y + GATE_SIZE as f32
                         - space_pixel_len * (i as f32)
-                        - pin_pixel_side_len * ((i - 1) as f32),
+                        - pin_pixel_side_len * (i as f32),
                     w: pin_pixel_side_len,
                     h: pin_pixel_side_len,
                 },
                 index: i - 1,
-                pin_type: pin_type.clone(),
+                pin_type: pin_type,
             });
         }
 

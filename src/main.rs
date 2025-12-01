@@ -80,7 +80,8 @@ async fn main() {
         y: 0.0,
     });
     let mut starting_drag_world: Option<Vec2> = None;
-    let base_zoom = camera.zoom;
+    // let base_zoom = camera.zoom;
+    let mut zoom_factor = 1.0;
 
     let mut current_selection = GateType::AND;
 
@@ -349,36 +350,35 @@ async fn main() {
         }
 
         let (_sx, sy) = mouse_wheel();
+        let screen_width = screen_width();
+        let screen_height = screen_height();
+        let zoom_rect = vec2(1. / screen_width * 2., 1. / screen_height * 2.);
         if sy != 0.0 {
             let sensitivity = 0.001; // tune
             let max_zoom = 100.0;
             // clamp factor to avoid zero/negative scaling
-            let factor = (1.0 + sy * sensitivity).max(0.01); // >1 zooms in, <1 zooms out
-
-            let mut new_zoom: Vec2 = camera.zoom * Vec2::new(factor, factor);
-            new_zoom.x = new_zoom
-                .x
-                .clamp(base_zoom.x * (1.0 / max_zoom), base_zoom.x * max_zoom);
-            new_zoom.y = new_zoom
-                .y
-                .clamp(base_zoom.y * max_zoom, base_zoom.y * (1.0 / max_zoom));
-
-            // zoom toward mouse position:
-            let mouse = Vec2::new(mouse_position().0, mouse_position().1);
-            let before = camera.screen_to_world(mouse);
-
-            camera.zoom = new_zoom;
-
-            let after = camera.screen_to_world(mouse);
-            camera.target += before - after; // keep focus under cursor
+            // let factor = (1.0 + sy * sensitivity).max(0.01); // >1 zooms in, <1 zooms out
+            zoom_factor *= (1.0 + sy * sensitivity).max(0.01);
+            zoom_factor = zoom_factor.clamp(1.0 / max_zoom, max_zoom);
         }
+
+        let new_zoom: Vec2 = zoom_rect * zoom_factor;
+
+        // zoom toward mouse position:
+        let mouse = Vec2::new(mouse_position().0, mouse_position().1);
+        let before = camera.screen_to_world(mouse);
+
+        camera.zoom = new_zoom;
+
+        let after = camera.screen_to_world(mouse);
+        camera.target += before - after; // keep focus under cursor
 
         counter += 1;
 
         set_camera(&camera);
         clear_background(BLUE);
 
-        utils::draw_grid(&camera, base_zoom);
+        utils::draw_grid(&camera, zoom_rect);
 
         // draw transparent gate over mouse.
         // doesn't matter if its drawn because a gate will be drawn over it

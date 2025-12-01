@@ -5,6 +5,8 @@ use crate::types::pins::*;
 use crate::utils::*;
 use macroquad::prelude::*;
 
+const FONT_SIZE: u16 = 32;
+
 pub struct Circuit {
     pub emulation_done: bool,
     pub wires_read: Vec<bool>,
@@ -186,18 +188,16 @@ impl Circuit {
                 let text = GateType::text(&gate.gate_type);
 
                 draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
-                let dims = measure_text(text, None, 32, 1.0);
+                let dims = measure_text(text, None, FONT_SIZE, 1.0);
                 let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-                let ty = rect.y + rect.h * 0.35 + dims.height * 0.5;
+                let ty = rect.y + rect.h * 0.5 + FONT_SIZE as f32 / 4.0;
 
                 draw_text_ex(
                     text,
                     tx,
                     ty,
                     TextParams {
-                        font_size: 32.0 as u16,
-                        font_scale: -1.0,
-                        font_scale_aspect: -1.0,
+                        font_size: FONT_SIZE,
                         color: BLACK,
                         ..Default::default()
                     },
@@ -352,18 +352,16 @@ impl Circuit {
             let text = GateType::text(gate_type);
 
             draw_rectangle(rect.x, rect.y, rect.w, rect.h, color.with_alpha(0.5));
-            let dims = measure_text(text, None, 32, 1.0);
+            let dims = measure_text(text, None, FONT_SIZE, 1.0);
             let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-            let ty = rect.y + rect.h * 0.35 + dims.height * 0.5;
+            let ty = rect.y + rect.h * 0.5 + FONT_SIZE as f32 / 4.0;
 
             draw_text_ex(
                 text,
                 tx,
                 ty,
                 TextParams {
-                    font_size: 32.0 as u16,
-                    font_scale: -1.0,
-                    font_scale_aspect: -1.0,
+                    font_size: FONT_SIZE,
                     color: BLACK.with_alpha(0.5),
                     ..Default::default()
                 },
