@@ -77,41 +77,51 @@ impl Circuit {
 
     pub fn connect_wire(
         &mut self,
-        output_gate_index: usize,
-        input_gate_index: usize,
-        output_pin_index: usize,
-        input_pin_index: usize,
+        from_gate_index: usize,
+        to_gate_index: usize,
+        from_pin_index: usize,
+        from_pin_type: PinType,
+        to_pin_index: usize,
+        to_pin_type: PinType
     ) {
-
-        {
-            if input_gate_index > self.gates.len() {
-                panic!("invalid input_gate_index {} for self.gates of length {}", input_pin_index, self.gates.len());
-            } 
-            if output_gate_index > self.gates.len() {
-                panic!("invalid output_gate_index {} for self.gates of length {}", output_pin_index, self.gates.len());
-            }
-
-            let output_gate = &self.gates[output_gate_index];
-            let input_gate = &self.gates[input_gate_index];
-
-            if input_pin_index > input_gate.input.len() {
-                panic!("invalid input_pin_index {} for input_gate of length {}", input_pin_index, input_gate.input.len());
-            } 
-            if output_pin_index > output_gate.output.len() {
-                panic!("invalid output_pin_index {} for output_gate of length {}", output_pin_index, output_gate.output.len());
-            }
-        }
 
         self.wires_read.push(false);
         self.wires_write.push(false); // to make them equal in length so no problems when swapping
-        // wire goes from 'output_gate' to 'input_gate'
         let wire_index = self.wires_read.len() - 1;
-        // connect output to wire
-        self.gates[output_gate_index].output[output_pin_index].other_gate_index = Some(input_gate_index);
-        self.gates[output_gate_index].output[output_pin_index].wire_index = Some(wire_index);
-        // connect input to wire
-        self.gates[input_gate_index].input[input_pin_index].other_gate_index = Some(output_gate_index);
-        self.gates[input_gate_index].input[input_pin_index].wire_index = Some(wire_index);
+
+        {
+            let gate = &mut self.gates[from_gate_index];
+
+            let pins_list= &mut match from_pin_type {
+                PinType::Input => { &mut gate.input }
+                PinType::Output => { &mut gate.output }
+            };
+
+            let pin = &mut pins_list[from_pin_index];
+
+            // connect output to wire
+            pin.other_gate_index = Some(to_gate_index);
+            pin.other_pin_index = Some(to_pin_index);
+            pin.other_pin_type = Some(to_pin_type);
+            pin.wire_index = Some(wire_index);
+        }
+
+        {
+            let gate: &mut Gate = &mut self.gates[to_gate_index];
+
+            let pins_list= match to_pin_type {
+                PinType::Input => { &mut gate.input }
+                PinType::Output => { &mut gate.output }
+            };
+
+            let pin = &mut pins_list[to_pin_index];
+
+            // connect output to wire
+            pin.other_gate_index = Some(from_gate_index);
+            pin.other_pin_index = Some(from_pin_index);
+            pin.other_pin_type = Some(from_pin_type);
+            pin.wire_index = Some(wire_index);
+        }
     }
 
     pub fn tick(&mut self) {
@@ -192,29 +202,25 @@ impl Circuit {
             }
 
             // draw wires
-            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
-            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
-            // only draw output -> input wires, otherwise double draw calls
-            // let spatial_input_pin_blocks = gate.get_side_pins_blocks(PinType::Input);
-            let spatial_output_pin_blocks = gate.get_side_pins_blocks(PinType::Output);
-           
-            for (current_pin_index, current_pin_block) in spatial_output_pin_blocks.iter().enumerate() {
-                let other_gate_index = gate.output[current_pin_index].other_gate_index;
+            for current_pin in gate.output.iter() {
+                match (current_pin.other_gate_index, current_pin.other_pin_index, current_pin.other_pin_type) {
+                    // we only connect outputs to inputs for now
+                    (Some(other_gate_index),  Some(other_pin_index), Some(PinType::Input)) => {
+                        let current_gate = gate;
+                        let other_gate = self.gates[other_gate_index].clone();
+                        let other_pin = other_gate.get_pin(other_pin_index, PinType::Input);
 
-                match other_gate_index {
-                    Some(index) => {
-                        let spatial_input_pin_blocks = self.gates[index].get_side_pins_blocks(PinType::Input);
-                        let other_pin_block = spatial_input_pin_blocks[current_pin_index].clone();
-
-                        let Vec2 {x: output_center_x, y: output_center_y} = current_pin_block.rect.center();
-                        let Vec2 {x: input_center_x, y: input_center_y} = other_pin_block.rect.center();
+                        let Vec2 {x: output_center_x, y: output_center_y} = current_gate.get_pin_block(current_pin.clone()).rect.center();
+                        let Vec2 {x: input_center_x, y: input_center_y} = other_gate.get_pin_block(other_pin).rect.center();
 
                         draw_line(output_center_x, output_center_y, input_center_x, input_center_y, 3.0, BLACK);
                     }
-                    None => {}
+                    _ => {}
                 }
             }
            
+            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
+            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
             // draw blocks
             for pin_block in pin_blocks {
                 let pin_rect = pin_block.rect;

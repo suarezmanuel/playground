@@ -71,9 +71,9 @@ async fn main() {
 
     let mut tree: RTree<SpatialBlockIndex> = RTree::new();
 
-    let mut starting_gate_index: Option<usize> = None;
-    let mut starting_pin_index: Option<usize> = None;
-    let mut starting_pin_type: Option<PinType> = None;
+    let mut start_gate_index: Option<usize> = None;
+    let mut start_pin_index: Option<usize> = None;
+    let mut start_pin_type: Option<PinType> = None;
 
     loop {
 
@@ -114,51 +114,59 @@ async fn main() {
         } else if is_key_pressed(KeyCode::Key8) {
             current_selection = GateType::GND;
         } else if is_key_pressed(KeyCode::Key9) {
-            starting_gate_index = None;
-            starting_pin_index = None;
-            starting_pin_type = None;
+            start_gate_index = None;
+            start_pin_index = None;
+            start_pin_type = None;
         } 
         
         match cursor_item {
             //  print the id of the hovering element and the element count
-            Some(spatial_gate_index) => {
-                log_msg = format!("{} hovering element id: {} |", log_msg, spatial_gate_index.index);
-                // println!("hovering element id: {}, gate count: {}", spatial_gate_index.index, tree.iter().count());
-                let gate = circuit.gates[spatial_gate_index.index].clone();
+            Some(hover_spatial_gate) => {
+                log_msg = format!("{} hovering element id: {} |", log_msg, hover_spatial_gate.index);
+                // println!("hovering element id: {}, gate count: {}", hover_spatial_gate.index, tree.iter().count());
+                let gate = circuit.gates[hover_spatial_gate.index].clone();
                 // are you hovering on a pin?
                 let pins_blocks = gate.get_pins_blocks();
                 let mouse_pos_world = camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
                 for pin_block in pins_blocks {
                     let pin_rect = pin_block.rect;
                     let mut hover_pin_index: Option<usize> = None;
+                    let mut hover_pin_type: Option<PinType> = None;
                     if pin_rect.contains(mouse_pos_world) {
                         log_msg = format!("{} hovering {} pin {} |", log_msg, pin_block.pin_type.to_string(), pin_block.index);
                         hover_pin_index = Some(pin_block.index);
+                        hover_pin_type = Some(pin_block.pin_type);
                     }
 
                     if is_mouse_button_pressed(MouseButton::Left) {
-                        match hover_pin_index {
-                            Some(index) => {
-                                match (starting_pin_index, starting_pin_type, starting_gate_index) {
-                                    (Some(prev_pin_index), Some(prev_pin_type), Some(prev_gate_index)) => {
-                                        // not in the same gate, not the same type of pin, not an already existing cable
-                                        let current_pin = circuit.gates[prev_gate_index].get_pin(prev_pin_index, prev_pin_type);
-                                        if prev_gate_index != spatial_gate_index.index && pin_block.pin_type.to_string() != prev_pin_index.to_string() && (current_pin.other_gate_index != Some(spatial_gate_index.index) || current_pin.other_pin_index != Some(index)) {
-                                            circuit.connect_wire(prev_gate_index, spatial_gate_index.index, prev_pin_index, index);
-                                            starting_gate_index = None;
-                                            starting_pin_index = None;
-                                            starting_pin_type = None;
+                        match (hover_pin_index, hover_pin_type, hover_spatial_gate.index) {
+                            (Some(to_pin_index), Some(to_pin_type), to_gate_index) => {
+                                match (start_pin_index, start_pin_type, start_gate_index) {
+                                    (Some(from_pin_index), Some(from_pin_type), Some(from_gate_index)) => {
+                                        // only use 'get_pin' to get values not to set them
+                                        let from_pin = circuit.gates[from_gate_index].get_pin(from_pin_index, from_pin_type);
+                                        let to_pin = circuit.gates[to_gate_index].get_pin(to_pin_index, to_pin_type);
+                                           // not in the same gate
+                                        if from_gate_index != to_gate_index &&
+                                           // not the same type of pin
+                                           to_pin_type.to_string() != from_pin_type.to_string() && 
+                                           // not an already existing cable
+                                           (from_pin.other_gate_index != Some(to_gate_index) || from_pin.other_pin_index != Some(to_pin_index)) {
+                                            circuit.connect_wire(from_gate_index, to_gate_index, from_pin.index, from_pin.pin_type, to_pin.index, to_pin.pin_type);
+                                            start_gate_index = None;
+                                            start_pin_index = None;
+                                            start_pin_type = None;
                                         }
                                     }
                                     (None, None, None) => {
-                                        starting_gate_index = Some(spatial_gate_index.index);
-                                        starting_pin_index = Some(index);
-                                        starting_pin_type = Some(pin_block.pin_type);
+                                        start_gate_index = Some(to_gate_index);
+                                        start_pin_index = Some(to_pin_index);
+                                        start_pin_type = Some(to_pin_type);
                                     }
                                     _ => {}
                                 }
                             }
-                            None => {}
+                            _ => {}
                         }
                     }
                 }
@@ -187,7 +195,7 @@ async fn main() {
 
         log_msg = format!("{} gate count: {} |\n", log_msg, tree.iter().count());
 
-        match (starting_gate_index, starting_pin_index, starting_pin_type) {
+        match (start_gate_index, start_pin_index, start_pin_type) {
             (Some(a), Some(b), Some(c)) => {
                 log_msg = format!("{} st_gate_index: {} st_pin_index: {} st_pin_type {}|\n", log_msg, a, b, c.to_string());
             }
