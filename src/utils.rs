@@ -18,17 +18,18 @@ pub fn camera_view_rect(camera: &Camera2D) -> Rect {
 }
 
 pub fn draw_grid(camera: &Camera2D, base_zoom: Vec2) {
-
     let MAX_ZOOM = 100.0;
-    let max_zoom = (base_zoom.x*MAX_ZOOM, base_zoom.y*(1.0/MAX_ZOOM));
-    let min_zoom = (base_zoom.x*(1.0/MAX_ZOOM), base_zoom.y*MAX_ZOOM);
-    let zoom_percentage = ((camera.zoom.x - min_zoom.0) / (base_zoom.x - min_zoom.0)).max(0.01).min(1.0);
+    let max_zoom = (base_zoom.x * MAX_ZOOM, base_zoom.y * (1.0 / MAX_ZOOM));
+    let min_zoom = (base_zoom.x * (1.0 / MAX_ZOOM), base_zoom.y * MAX_ZOOM);
+    let zoom_percentage = ((camera.zoom.x - min_zoom.0) / (base_zoom.x - min_zoom.0))
+        .max(0.01)
+        .min(1.0);
     // println!("{}", zoom_percentage);
 
-    let mut scale : f32 = 8.0;
+    let mut scale: f32 = 8.0;
     let rect = camera_view_rect(&camera);
 
-    let mut tile_count : u32 = ((rect.w / scale) * (rect.h / scale)).round() as u32; // estimate
+    let mut tile_count: u32 = ((rect.w / scale) * (rect.h / scale)).round() as u32; // estimate
     while tile_count > 8_000 {
         scale *= 2.0;
         tile_count = ((rect.w / scale) * (rect.h / scale)).round() as u32; // estimate
@@ -43,13 +44,27 @@ pub fn draw_grid(camera: &Camera2D, base_zoom: Vec2) {
 
     let mut x = min_x;
     while x < max_x {
-        draw_line(x as f32, min_y as f32, x as f32, max_y as f32, thickness as f32, GRAY);
+        draw_line(
+            x as f32,
+            min_y as f32,
+            x as f32,
+            max_y as f32,
+            thickness as f32,
+            GRAY,
+        );
         x += scale;
     }
-    
+
     let mut y = min_y;
     while y < max_y {
-        draw_line(min_x as f32, y as f32, max_x as f32, y as f32, thickness as f32, GRAY);
+        draw_line(
+            min_x as f32,
+            y as f32,
+            max_x as f32,
+            y as f32,
+            thickness as f32,
+            GRAY,
+        );
         y += scale;
     }
 }
