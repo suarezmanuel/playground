@@ -135,20 +135,23 @@ impl Circuit {
         let mut changed_wires = vec![false; self.wires_read.len()];
         // read
         for gate in &self.gates {
-            let result = self.evaluate(gate);
-            // only do outputs by the first bit for now
-            let output_wire_index = gate.output[0].wire_index;
 
-            match output_wire_index {
-                Some(index) => {
-                    if changed_wires[index] && self.wires_write[index] == !result {
-                        panic!("short circuit on wire {}", index);
+            if gate.output.len() > 0 {
+                let result = self.evaluate(gate);
+                // only do outputs by the first bit for now
+                let output_wire_index = gate.output[0].wire_index;
+
+                match output_wire_index {
+                    Some(index) => {
+                        if changed_wires[index] && self.wires_write[index] == !result {
+                            panic!("short circuit on wire {}", index);
+                        }
+                        self.wires_write[index] = result;
+                        changed_wires[index] = true;
                     }
-                    self.wires_write[index] = result;
-                    changed_wires[index] = true;
-                }
-                None => {
-                    // dont write to a wire if there's no connected wire
+                    None => {
+                        // dont write to a wire if there's no connected wire
+                    }
                 }
             }
         }

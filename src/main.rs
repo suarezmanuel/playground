@@ -140,9 +140,10 @@ async fn main() {
 
         if is_key_pressed(KeyCode::R) {
             emulate = !emulate; 
-            if is_key_pressed(KeyCode::LeftShift) {
-                circuit.reset_wires();
-            }
+        }
+
+        if is_key_pressed(KeyCode::T) {
+            circuit.reset_wires();
         }
         
         
