@@ -1,8 +1,8 @@
-use macroquad::prelude::*;
-use crate::types::pins::*;
-use crate::types::pin_type::*;
-use crate::types::spatial_pin_index::*;
 use crate::types::gate_type::*;
+use crate::types::pin_type::*;
+use crate::types::pins::*;
+use crate::types::spatial_pin_index::*;
+use macroquad::prelude::*;
 
 #[derive(Clone)]
 pub struct Gate {
@@ -17,20 +17,48 @@ impl Gate {
         let input = match gate_type {
             GateType::PWR => Vec::new(),
             GateType::NOT | GateType::GND => {
-                vec![Pin{index: 0, pin_type: PinType::Input, other_pin_index: None, other_pin_type: None, other_gate_index: None, wire_index: None}]
+                vec![Pin {
+                    index: 0,
+                    pin_type: PinType::Input,
+                    other_pin_index: None,
+                    other_pin_type: None,
+                    other_gate_index: None,
+                    wire_index: None,
+                }]
             }
             // the gates for pins need to be assigned by circuit
             _ => {
                 vec![
-                Pin{index: 0, pin_type: PinType::Input, other_pin_index: None, other_pin_type: None, other_gate_index: None, wire_index: None}, 
-                Pin{index: 1, pin_type: PinType::Input, other_pin_index: None, other_pin_type: None, other_gate_index: None, wire_index: None}
+                    Pin {
+                        index: 0,
+                        pin_type: PinType::Input,
+                        other_pin_index: None,
+                        other_pin_type: None,
+                        other_gate_index: None,
+                        wire_index: None,
+                    },
+                    Pin {
+                        index: 1,
+                        pin_type: PinType::Input,
+                        other_pin_index: None,
+                        other_pin_type: None,
+                        other_gate_index: None,
+                        wire_index: None,
+                    },
                 ]
             }
         };
 
         let output = match gate_type {
             GateType::GND => Vec::new(),
-            _ => vec![Pin{index: 0, pin_type: PinType::Output, other_pin_index: None, other_pin_type: None, other_gate_index: None, wire_index: None}],
+            _ => vec![Pin {
+                index: 0,
+                pin_type: PinType::Output,
+                other_pin_index: None,
+                other_pin_type: None,
+                other_gate_index: None,
+                wire_index: None,
+            }],
         };
 
         return Gate {
@@ -43,16 +71,15 @@ impl Gate {
 
     pub fn get_pin(&self, pin_index: usize, pin_type: PinType) -> Pin {
         return match pin_type {
-            PinType::Input  => { self.input[pin_index].clone() }
-            PinType::Output => { self.output[pin_index].clone() }
-        }
+            PinType::Input => self.input[pin_index].clone(),
+            PinType::Output => self.output[pin_index].clone(),
+        };
     }
 
     pub fn get_pin_block(&self, pin: Pin) -> SpatialPinIndex {
-
         let pin_count = match pin.pin_type {
-            PinType::Input => { self.input.len() }
-            PinType::Output => { self.output.len() }
+            PinType::Input => self.input.len(),
+            PinType::Output => self.output.len(),
         };
 
         let pin_pixel_side_len = 6.0;
@@ -60,28 +87,26 @@ impl Gate {
         let space_pixel_len = (64.0 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
 
         let (tl_x, tl_y) = match pin.pin_type {
-            PinType::Input => {(self.rect.x, self.rect.y)}
-            PinType::Output => {(self.rect.x+self.rect.w-pin_pixel_side_len, self.rect.y)}
+            PinType::Input => (self.rect.x, self.rect.y),
+            PinType::Output => (self.rect.x + self.rect.w - pin_pixel_side_len, self.rect.y),
         };
 
         return SpatialPinIndex {
-                    rect: Rect {
-                        x: tl_x,
-                        // camera is upside down
-                        y: tl_y + 64.0 - space_pixel_len * ((pin.index+1) as f32) - pin_pixel_side_len * (pin.index as f32),
-                        w: pin_pixel_side_len,
-                        h: pin_pixel_side_len,
-                    },
-                    index: pin.index,
-                    pin_type: pin.pin_type,
-                };
+            rect: Rect {
+                x: tl_x,
+                // camera is upside down
+                y: tl_y + 64.0
+                    - space_pixel_len * ((pin.index + 1) as f32)
+                    - pin_pixel_side_len * (pin.index as f32),
+                w: pin_pixel_side_len,
+                h: pin_pixel_side_len,
+            },
+            index: pin.index,
+            pin_type: pin.pin_type,
+        };
     }
 
-    pub fn get_side_pins_blocks(
-        &self,
-        pin_type: PinType,
-    ) -> Vec<SpatialPinIndex> {
-
+    pub fn get_side_pins_blocks(&self, pin_type: PinType) -> Vec<SpatialPinIndex> {
         let tl_x;
         let tl_y;
         let pin_count: usize;
@@ -113,11 +138,13 @@ impl Gate {
                 rect: Rect {
                     x: tl_x,
                     // camera is upside down
-                    y: tl_y + 64.0 - space_pixel_len * (i as f32) - pin_pixel_side_len * ((i - 1) as f32),
+                    y: tl_y + 64.0
+                        - space_pixel_len * (i as f32)
+                        - pin_pixel_side_len * ((i - 1) as f32),
                     w: pin_pixel_side_len,
                     h: pin_pixel_side_len,
                 },
-                index: i-1,
+                index: i - 1,
                 pin_type: pin_type.clone(),
             });
         }
@@ -128,14 +155,10 @@ impl Gate {
     pub fn get_pins_blocks(self) -> Vec<SpatialPinIndex> {
         let mut rects: Vec<SpatialPinIndex> = Vec::new();
         // input pins
-        rects.extend(self.get_side_pins_blocks(
-            PinType::Input,
-        ));
+        rects.extend(self.get_side_pins_blocks(PinType::Input));
 
         // output pins
-        rects.extend(self.get_side_pins_blocks(
-            PinType::Output,
-        ));
+        rects.extend(self.get_side_pins_blocks(PinType::Output));
 
         return rects;
     }

@@ -1,5 +1,5 @@
-use macroquad::prelude::*;
 use crate::types::pin_type::*;
+use macroquad::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct SpatialPinIndex {
