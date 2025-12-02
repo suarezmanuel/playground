@@ -41,4 +41,32 @@ impl GateType {
             GateType::GND => "gnd",
         };
     }
+
+    pub fn input_count(&self) -> usize {
+        return match self {
+            GateType::NOT => 1,
+            GateType::OR => 2,
+            GateType::XOR => 2,
+            GateType::XNOR => 2,
+            GateType::NOR => 2,
+            GateType::AND => 2,
+            GateType::NAND => 2,
+            GateType::PWR => 0,
+            GateType::GND => 1,
+        }
+    }
+
+    pub fn output_count(&self) -> usize {
+        return match self {
+            GateType::NOT => 1,
+            GateType::OR => 1,
+            GateType::XOR => 1,
+            GateType::XNOR => 1,
+            GateType::NOR => 1,
+            GateType::AND => 1,
+            GateType::NAND => 1,
+            GateType::PWR => 1,
+            GateType::GND => 0,
+        }
+    }
 }

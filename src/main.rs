@@ -1,5 +1,4 @@
 use macroquad::prelude::*;
-use std::thread::current;
 use std::time::SystemTime;
 mod events;
 mod types;
@@ -9,6 +8,7 @@ use crate::types::circuit::*;
 use crate::types::gate::*;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
+use crate::types::wires::ConnectionUtils;
 use crate::ui::draw_ui_gate;
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
 use ui::draw_ui;
@@ -160,83 +160,54 @@ async fn main() {
                 // println!("hovering element id: {}, gate count: {}", hover_spatial_gate.index, tree.iter().count());
                 let gate = circuit.gates[hover_spatial_gate.index].clone();
                 // are you hovering on a pin?
-                let pins_blocks = gate.get_pins_blocks();
+                let pins = gate.input.iter().chain(gate.output.iter());
                 let mouse_pos_world =
                     camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-                for pin_block in pins_blocks {
-                    let pin_rect = pin_block.rect;
+                for pin in pins {
+                    let pin_rect = pin.rect;
                     let mut hover_pin_index: Option<usize> = None;
                     let mut hover_pin_type: Option<PinType> = None;
                     if pin_rect.contains(mouse_pos_world) {
                         log_msg = format!(
                             "{} hovering {} pin {} |",
                             log_msg,
-                            pin_block.pin_type.to_string(),
-                            pin_block.index
+                            pin.pin_type.to_string(),
+                            pin.index
                         );
-                        hover_pin_index = Some(pin_block.index);
-                        hover_pin_type = Some(pin_block.pin_type);
+                        hover_pin_index = Some(pin.index);
+                        hover_pin_type = Some(pin.pin_type);
                     }
 
                     match (hover_pin_index, hover_pin_type, hover_spatial_gate.index) {
-                        (Some(to_pin_index), Some(to_pin_type), to_gate_index) => {
+                        (Some(hover_pin_index), Some(hover_pin_type), hover_gate_index) => {
                             // cancel start of cable
                             // delete existing cable
                             if is_mouse_button_pressed(MouseButton::Right) {
-                                let to_pin =
-                                    circuit.gates[to_gate_index].get_pin(to_pin_index, to_pin_type);
-                                match (
-                                    to_pin.other_gate_index,
-                                    to_pin.other_pin_index,
-                                    to_pin.other_pin_type,
-                                ) {
-                                    (
-                                        Some(other_gate_index),
-                                        Some(other_pin_index),
-                                        Some(other_pin_type),
-                                    ) => {
-                                        circuit.remove_wire(
-                                            circuit.gates[to_gate_index]
-                                                .get_pin(to_pin_index, to_pin_type)
-                                                .wire_index
-                                                .unwrap(),
-                                        );
-
-                                        {
-                                            let gate = &mut circuit.gates[other_gate_index];
-                                            let pins = match other_pin_type {
-                                                PinType::Input => &mut gate.input,
-                                                PinType::Output => &mut gate.output,
-                                            };
-
-                                            let pin = &mut pins[other_pin_index];
-                                            pin.other_gate_index = None;
-                                            pin.other_pin_index = None;
-                                            pin.other_pin_type = None;
-                                            pin.wire_index = None;
-                                        }
-
-                                        {
-                                            let gate = &mut circuit.gates[to_gate_index];
-                                            let pins = match to_pin_type {
-                                                PinType::Input => &mut gate.input,
-                                                PinType::Output => &mut gate.output,
-                                            };
-
-                                            let pin = &mut pins[to_pin_index];
-                                            pin.other_gate_index = None;
-                                            pin.other_pin_index = None;
-                                            pin.other_pin_type = None;
-                                            pin.wire_index = None;
+                                // just remove hover pin from Connections in wires_meta.
+                                // if thats the only connection, then remove the wire from wires_meta (no index problems)
+                                let wire_index = circuit.gates[hover_gate_index].get_pin(hover_pin_index, hover_pin_type).wire_index;
+                                if wire_index.is_some() {
+                                    let wire = &mut circuit.wires_meta[wire_index.unwrap()];
+                                    // if is a source pin of the wire
+                                    if (wire.source.gate_index == hover_gate_index && wire.source.pin_index == hover_pin_index)
+                                    // if is the only connected pin to wire
+                                    || wire.connections.len() == 1 && wire.connections[0].gate_index == hover_gate_index && wire.connections[0].pin_index == hover_pin_index {
+                                        // remove the wire
+                                        circuit.remove_wire(wire_index.unwrap());
+                                    } else {
+                                        let element_index: Option<usize> = wire.connections.find_pin_index(hover_gate_index, hover_pin_index);
+                                        if element_index.is_some() {
+                                            wire.connections.remove(element_index.unwrap());
+                                        } else {
+                                            panic!("pin {hover_pin_index} of gate {hover_gate_index} is connected to {} but is not source or connection", wire_index.unwrap());
                                         }
                                     }
-
-                                    _ => {}
                                 }
 
                                 start_gate_index = None;
                                 start_pin_index = None;
                                 start_pin_type = None;
+
                             } else if is_mouse_button_pressed(MouseButton::Left) {
                                 match (start_pin_index, start_pin_type, start_gate_index) {
                                     (
@@ -248,18 +219,17 @@ async fn main() {
                                         // only use 'get_pin' to get values not to set them
                                         let from_pin = circuit.gates[from_gate_index]
                                             .get_pin(from_pin_index, from_pin_type);
-                                        let to_pin = circuit.gates[to_gate_index]
-                                            .get_pin(to_pin_index, to_pin_type);
-                                        // not in the same gate
-                                        if from_gate_index != to_gate_index &&
-                                           // not the same type of pin
-                                           to_pin_type.to_string() != from_pin_type.to_string() && 
-                                           // not an already existing cable
-                                           (from_pin.other_gate_index != Some(to_gate_index) || from_pin.other_pin_index != Some(to_pin_index))
-                                        {
+                                        let to_pin = circuit.gates[hover_gate_index]
+                                            .get_pin(hover_pin_index, hover_pin_type);
+
+                                        // check they aren't of the same gate
+                                        if from_gate_index != hover_gate_index &&
+                                        // check they aren't of the same type
+                                        hover_pin_type.to_string() != from_pin_type.to_string() {
+                                            // try to connect them
                                             circuit.connect_wire(
                                                 from_gate_index,
-                                                to_gate_index,
+                                                hover_gate_index,
                                                 from_pin.index,
                                                 from_pin.pin_type,
                                                 to_pin.index,
@@ -271,9 +241,9 @@ async fn main() {
                                         }
                                     }
                                     (None, None, None) => {
-                                        start_gate_index = Some(to_gate_index);
-                                        start_pin_index = Some(to_pin_index);
-                                        start_pin_type = Some(to_pin_type);
+                                        start_gate_index = Some(hover_gate_index);
+                                        start_pin_index = Some(hover_pin_index);
+                                        start_pin_type = Some(hover_pin_type);
                                     }
                                     _ => {}
                                 }
@@ -283,7 +253,7 @@ async fn main() {
                     }
                 }
             }
-
+            // FIX for some reason when deleting and adding a new wire, the wires_read.len goes up by one
             // if there is no element here, make a new one.
             _ => {
                 match closest_item {
@@ -303,7 +273,7 @@ async fn main() {
                         x: (mouse_pos_world.x / 64.0).floor() * 64.0,
                         y: (mouse_pos_world.y / 64.0).floor() * 64.0,
                     };
-                    let gate_index = circuit.add_gate(Gate::new(gate_rect, current_selection));
+                    let gate_index = circuit.add_gate(Gate::new(gate_rect, Rotation::Up, current_selection));
                     // add to tree with id
                     tree.insert(SpatialBlockIndex {
                         rect: gate_rect,
@@ -314,6 +284,7 @@ async fn main() {
         }
 
         log_msg = format!("{} gate count: {} |\n", log_msg, tree.iter().count());
+        log_msg = format!("{} wire count: {} |\n", log_msg, circuit.wires_read.len());
 
         if is_mouse_button_pressed(MouseButton::Right) {
             start_gate_index = None;
@@ -403,6 +374,10 @@ async fn main() {
             log_msg = format!("{log_msg} | tick happened!!");
         }
 
+
+        if is_mouse_button_pressed(MouseButton::Left) {
+            println!("mouse x: {} mouse y: {}", mouse_world.x, mouse_world.y);
+        }
         circuit.draw_gates(&camera);
         circuit.draw_wires(&camera);
         circuit.draw_pins(&camera);

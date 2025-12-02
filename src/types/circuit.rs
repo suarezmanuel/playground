@@ -1,9 +1,11 @@
 use crate::types::gate::*;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
-use crate::types::pins::*;
 use crate::utils::*;
+use crate::types::wires::*;
 use macroquad::prelude::*;
+use crate::types::pins::*;
+use crate::types::gate::*;
 
 const FONT_SIZE: u16 = 32;
 
@@ -12,6 +14,7 @@ pub struct Circuit {
     pub wires_read: Vec<bool>,
     pub wires_write: Vec<bool>,
     pub wires_freed: Vec<bool>,
+    pub wires_meta: Vec<Wire>,
     pub gates: Vec<Gate>,
 }
 
@@ -24,6 +27,7 @@ impl Circuit {
             wires_write: vec![],
             gates: Vec::new(),
             wires_freed: vec![], // if wires_read gets really big and then all the wires are deleted, wires_freed will be wasted memory. a compression algo is needed
+            wires_meta: vec![]
         };
     }
 
@@ -51,18 +55,20 @@ impl Circuit {
         }
     }
 
-    pub fn add_wire(&mut self) -> usize {
+    pub fn new_wire(&mut self) -> usize {
         for (index, value) in self.wires_freed.iter().enumerate() {
             if *value == true {
                 self.wires_freed[index] = false;
                 self.wires_read.insert(index, false);
                 self.wires_write.insert(index, false);
+                self.wires_meta.insert(index, Wire{source: Connection{ pin_index: 0, gate_index: 0}, connections: vec![], wire_index: self.wires_read.len() - 1});
                 return index;
             }
         }
         self.wires_read.push(false);
         self.wires_write.push(false); // to make them equal in length so no problems when swapping
         self.wires_freed.push(false);
+        self.wires_meta.push(Wire{source: Connection{ pin_index: 0, gate_index: 0}, connections: vec![], wire_index: self.wires_read.len() - 1});
         return self.wires_read.len() - 1;
     }
 
@@ -71,8 +77,19 @@ impl Circuit {
             panic!("double free of wire at index {index}");
         }
         self.wires_freed[index] = true;
-        self.wires_read.remove(index);
-        self.wires_write.remove(index);
+        // remove value from wires_meta
+        // this makes sure its not drawn anymore
+        let wire = &self.wires_meta[index];
+        let source_gate_index = wire.source.gate_index;
+        let source_pin_index = wire.source.pin_index;
+        self.gates[source_gate_index].output[source_pin_index].wire_index = None;
+        
+        for connection in wire.connections.iter() {
+            self.gates[connection.gate_index].input[connection.pin_index].wire_index = None;
+        }
+
+        self.wires_meta[index].connections = vec![];
+
     }
 
     pub fn connect_wire(
@@ -84,40 +101,92 @@ impl Circuit {
         to_pin_index: usize,
         to_pin_type: PinType,
     ) {
-        let wire_index = self.add_wire();
-
-        {
-            let gate = &mut self.gates[from_gate_index];
-
-            let pins_list = &mut match from_pin_type {
-                PinType::Input => &mut gate.input,
-                PinType::Output => &mut gate.output,
-            };
-
-            let pin = &mut pins_list[from_pin_index];
-
-            // connect output to wire
-            pin.other_gate_index = Some(to_gate_index);
-            pin.other_pin_index = Some(to_pin_index);
-            pin.other_pin_type = Some(to_pin_type);
-            pin.wire_index = Some(wire_index);
+        if from_pin_type.to_string() == to_pin_type.to_string() {
+            panic!("there shouldn't be a cable between pins of the same type");
         }
 
-        {
-            let gate: &mut Gate = &mut self.gates[to_gate_index];
+        // from_pin, to_pin are general pins, to actually know the connection direction we need the types
+        let input_pin_index: usize;
+        let input_pin_type: PinType;
+        let output_pin_index: usize;
+        let output_pin_type: PinType;
+        let input_gate_index: usize;
+        let output_gate_index: usize;
 
-            let pins_list = match to_pin_type {
-                PinType::Input => &mut gate.input,
-                PinType::Output => &mut gate.output,
-            };
+        match from_pin_type {
+            PinType::Input => {
+                input_pin_index = from_pin_index;
+                input_pin_type = from_pin_type;
+                input_gate_index = from_gate_index;
+                output_pin_index = to_pin_index;
+                output_pin_type = to_pin_type;
+                output_gate_index = to_gate_index;
+            }
+            PinType::Output => {
+                input_pin_index = to_pin_index;
+                input_pin_type = to_pin_type;
+                input_gate_index = to_gate_index;
+                output_pin_index = from_pin_index;
+                output_pin_type = from_pin_type;
+                output_gate_index = from_gate_index;
+            }
+        }
 
-            let pin = &mut pins_list[to_pin_index];
+        let input_pin = &mut self.gates[input_gate_index].get_pin(input_pin_index, input_pin_type);
+        let output_pin = &mut self.gates[output_gate_index].get_pin(output_pin_index, output_pin_type);
 
-            // connect output to wire
-            pin.other_gate_index = Some(from_gate_index);
-            pin.other_pin_index = Some(from_pin_index);
-            pin.other_pin_type = Some(from_pin_type);
-            pin.wire_index = Some(wire_index);
+
+        match output_pin.wire_index {
+            Some(wire_index) => {
+                // check that they aren't connected already
+                let connected = self.wires_meta[wire_index].connections.find_pin_index(input_gate_index, input_pin.index).is_some();
+
+                if !connected {
+                    // if input_pin is part of another wire
+                    if input_pin.wire_index.is_some() { // input_pin can only be in 'connections'
+                        // if other wire only connects to input_pin, remove wire
+                        if self.wires_meta[input_pin.wire_index.unwrap()].connections.len() == 1 {
+                            self.remove_wire(input_pin.wire_index.unwrap());
+                        } else {
+                            // if other wire has more connections, remove input_pin from connections 
+                            let index_to_remove = self.wires_meta[input_pin.wire_index.unwrap()].connections.find_pin_index(input_gate_index, input_pin.index);
+                            if index_to_remove.is_some() { self.wires_meta[input_pin.wire_index.unwrap()].connections.remove(index_to_remove.unwrap()); }
+                        }
+                    }
+                    
+                    self.wires_meta[wire_index].connections.push(Connection{pin_index: input_pin.index, gate_index: input_gate_index});
+                    // input_pin.wire_index = Some(wire_index); 
+                    self.gates[input_gate_index].input[input_pin_index].wire_index = Some(wire_index); // fixed
+                }
+                // if connected don't do anything
+            }
+            None => {
+                
+                // if input_pin already has a wire, remove it from other wire
+                if input_pin.wire_index.is_some() {
+                    if self.wires_meta[input_pin.wire_index.unwrap()].connections.len() == 1 {
+                        self.remove_wire(input_pin.wire_index.unwrap());
+                    } else {
+                        let index_to_remove = self.wires_meta[input_pin.wire_index.unwrap()].connections.find_pin_index(input_gate_index, input_pin.index);
+                        if index_to_remove.is_some() { self.wires_meta[input_pin.wire_index.unwrap()].connections.remove(index_to_remove.unwrap()); }
+                    }
+                }
+
+                let new_wire_index = self.new_wire();
+                let connection = &mut self.wires_meta[new_wire_index];
+                connection.source = Connection{pin_index: output_pin.index, gate_index: output_gate_index };
+                connection.connections = vec![Connection{pin_index: input_pin.index, gate_index: input_gate_index}];
+                {
+                    let gate = &mut self.gates[input_gate_index];
+                    gate.input[input_pin_index].wire_index = Some(new_wire_index);
+                    // input_pin.wire_index = Some(new_wire_index);
+                }
+
+                {
+                    let gate = &mut self.gates[output_gate_index];
+                    gate.output[output_pin_index].wire_index = Some(new_wire_index);
+                }
+            }
         }
     }
 
@@ -138,10 +207,10 @@ impl Circuit {
         // read
         for gate in &self.gates {
 
-            if gate.output.len() > 0 {
+            for output in &gate.output {
                 let result = self.evaluate(gate);
                 // only do outputs by the first bit for now
-                let output_wire_index = gate.output[0].wire_index;
+                let output_wire_index = output.wire_index;
 
                 match output_wire_index {
                     Some(index) => {
@@ -190,8 +259,8 @@ impl Circuit {
                 draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
                 let dims = measure_text(text, None, FONT_SIZE, 1.0);
                 let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-                let ty = rect.y + rect.h * 0.5 + FONT_SIZE as f32 / 4.0;
-
+                let ty = rect.y + rect.h * 0.5 + dims.offset_y * 0.5 as f32;
+                
                 draw_text_ex(
                     text,
                     tx,
@@ -203,103 +272,25 @@ impl Circuit {
                     },
                 );
             }
-
-            // draw wires
-            for current_pin in gate.output.iter() {
-                match (
-                    current_pin.other_gate_index,
-                    current_pin.other_pin_index,
-                    current_pin.other_pin_type,
-                ) {
-                    // we only connect outputs to inputs for now
-                    (Some(other_gate_index), Some(other_pin_index), Some(PinType::Input)) => {
-                        let current_gate = gate;
-                        let other_gate = self.gates[other_gate_index].clone();
-                        let other_pin = other_gate.get_pin(other_pin_index, PinType::Input);
-
-                        let Vec2 {
-                            x: output_center_x,
-                            y: output_center_y,
-                        } = current_gate
-                            .get_pin_block(current_pin.clone())
-                            .rect
-                            .center();
-                        let Vec2 {
-                            x: input_center_x,
-                            y: input_center_y,
-                        } = other_gate.get_pin_block(other_pin).rect.center();
-
-                        draw_line(
-                            output_center_x,
-                            output_center_y,
-                            input_center_x,
-                            input_center_y,
-                            3.0,
-                            BLACK,
-                        );
-                    }
-                    _ => {}
-                }
-            }
-
-            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
-            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
-            // draw blocks
-            for pin_block in pin_blocks {
-                let pin_rect = pin_block.rect;
-                if intersects(pin_rect, camera_view_rect) {
-                    draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
-                }
-            }
         }
     }
 
     pub fn draw_wires(&self, camera: &Camera2D) {
         set_camera(camera);
 
-        for gate in &self.gates {
-            // check intersection of wire with screen (later)
-            // draw wires
-            for current_pin in gate.output.iter() {
-                match (
-                    current_pin.other_gate_index,
-                    current_pin.other_pin_index,
-                    current_pin.other_pin_type,
-                ) {
-                    // we only connect outputs to inputs for now
-                    (Some(other_gate_index), Some(other_pin_index), Some(PinType::Input)) => {
-                        let current_gate = gate;
-                        let other_gate = self.gates[other_gate_index].clone();
-                        let other_pin = other_gate.get_pin(other_pin_index, PinType::Input);
+        for wire in &self.wires_meta {
+            let Vec2 { x: start_x, y: start_y } = self.gates[wire.source.gate_index].get_pin_rect(wire.source.pin_index, PinType::Output).center();
 
-                        let Vec2 {
-                            x: output_center_x,
-                            y: output_center_y,
-                        } = current_gate
-                            .get_pin_block(current_pin.clone())
-                            .rect
-                            .center();
-                        let Vec2 {
-                            x: input_center_x,
-                            y: input_center_y,
-                        } = other_gate.get_pin_block(other_pin).rect.center();
+            for connection in &wire.connections {
+                // println!("connection pin index: {}", connection.pin_index);
+                let Vec2 { x: end_x, y: end_y } = self.gates[connection.gate_index].get_pin_rect(connection.pin_index, PinType::Input).center();
+            
+                let color = match self.wires_read[wire.wire_index] {
+                    true => { YELLOW }
+                    false => { BLACK }
+                };
 
-                        let wire_color = match self.wires_read[current_pin.wire_index.unwrap()] {
-                            true => { YELLOW }
-                            false => { BLACK }
-                        };
-
-                        draw_line(
-                            output_center_x,
-                            output_center_y,
-                            input_center_x,
-                            input_center_y,
-                            3.0,
-                            wire_color,
-                        );
-                    }
-                    _ => {}
-                }
+                draw_line(start_x, start_y, end_x, end_y, 3.0, color);
             }
         }
     }
@@ -310,11 +301,10 @@ impl Circuit {
         for gate in &self.gates {
             let camera_view_rect = camera_view_rect(&camera);
 
-            // to cut down on the processing each frame, it would be good to have the blocks be part of the gate, as these never change.
-            let pin_blocks = &gate.clone().get_pins_blocks(); // this is kinda scuffed
-            // draw blocks
-            for pin_block in pin_blocks {
-                let pin_rect = pin_block.rect;
+            let pins= gate.input.iter().chain(gate.output.iter());
+
+            for pin in pins {
+                let pin_rect = pin.rect;
                 if intersects(pin_rect, camera_view_rect) {
                     draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
                 }
@@ -332,11 +322,11 @@ impl Circuit {
         match (gate_index, pin_index, pin_type) {
             (Some(gate_index), Some(pin_index), Some(pin_type)) => {
                 let gate = self.gates[gate_index].clone(); // this is fine because we only read and don't write
-                let block = gate.get_pin_block(gate.get_pin(pin_index, pin_type));
+                let rect = gate.get_pin(pin_index, pin_type).rect;
                 let Vec2 {
                     x: center_x,
                     y: center_y,
-                } = block.rect.center();
+                } = rect.center();
                 let mouse_world =
                     camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
                 draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);

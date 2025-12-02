@@ -1,12 +1,11 @@
 use crate::types::pin_type::*;
+use macroquad::prelude::*;
 
 #[derive(Clone)]
-pub struct Pin {
+pub struct Pin { // this will be the new spatialPinIndex
+    pub rect: Rect,
     pub index: usize,
     pub pin_type: PinType,
-    pub other_pin_index: Option<usize>,
-    pub other_pin_type: Option<PinType>,
-    pub other_gate_index: Option<usize>,
     pub wire_index: Option<usize>,
 }
 

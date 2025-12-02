@@ -3,4 +3,4 @@ pub mod gate;
 pub mod gate_type;
 pub mod pin_type;
 pub mod pins;
-pub mod spatial_pin_index;
+pub mod wires;
