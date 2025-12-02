@@ -301,7 +301,7 @@ async fn main() {
                             index: dragging_gate_index.unwrap(),
                         });
                     } else {
-                        let gate_index = circuit.add_gate(Gate::new(gate_rect, current_selection));
+                        let gate_index = circuit.add_gate(Gate::new(gate_rect, Rotation::Up, current_selection));
                         // add to tree with id
                         tree.insert(SpatialBlockIndex {
                             rect: gate_rect,
