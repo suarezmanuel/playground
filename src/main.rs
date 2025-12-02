@@ -1,5 +1,5 @@
+#[warn(unused_variables)]
 use macroquad::prelude::*;
-use std::thread::current;
 use std::time::SystemTime;
 mod events;
 mod types;
@@ -96,6 +96,11 @@ async fn main() {
     let mut emulate = false;
     let mut last_tick_time = SystemTime::now();
 
+    let mut edition = false;
+
+    let mut dragging_gate_index: Option<usize> = None;
+    let mut is_dragging = false;
+
     loop {
         let mut log_msg: String = "".to_string();
 
@@ -137,17 +142,20 @@ async fn main() {
             current_selection = GateType::PWR;
         } else if is_key_pressed(KeyCode::Key9) {
             current_selection = GateType::GND;
-        } 
+        }
+
+        if is_key_pressed(KeyCode::E) {
+            edition = !edition;
+        }
 
         if is_key_pressed(KeyCode::R) {
-            emulate = !emulate; 
+            emulate = !emulate;
         }
 
         if is_key_pressed(KeyCode::T) {
             circuit.reset_wires();
         }
-        
-        
+
         log_msg = format!("{log_msg} emulate {emulate} |");
 
         match cursor_item {
@@ -253,7 +261,7 @@ async fn main() {
                                         // not in the same gate
                                         if from_gate_index != to_gate_index &&
                                            // not the same type of pin
-                                           to_pin_type.to_string() != from_pin_type.to_string() && 
+                                           to_pin_type.to_string() != from_pin_type.to_string() &&
                                            // not an already existing cable
                                            (from_pin.other_gate_index != Some(to_gate_index) || from_pin.other_pin_index != Some(to_pin_index))
                                         {
@@ -285,7 +293,15 @@ async fn main() {
             }
 
             // if there is no element here, make a new one.
-            _ => {
+            None => {
+                if is_dragging {
+                    let (x, y) = mouse_position();
+                    let mouse_pos_world = camera.screen_to_world(Vec2::new(x, y));
+                    circuit.gates[dragging_gate_index.unwrap()].rect.x =
+                        (mouse_pos_world.x / 64.0).floor() * 64.0;
+                    circuit.gates[dragging_gate_index.unwrap()].rect.y =
+                        (mouse_pos_world.y / 64.0).floor() * 64.0;
+                }
                 match closest_item {
                     Some(item) => {
                         log_msg = format!("{} closest element id: {} |", log_msg, item.index);
@@ -303,12 +319,24 @@ async fn main() {
                         x: (mouse_pos_world.x / 64.0).floor() * 64.0,
                         y: (mouse_pos_world.y / 64.0).floor() * 64.0,
                     };
-                    let gate_index = circuit.add_gate(Gate::new(gate_rect, current_selection));
-                    // add to tree with id
-                    tree.insert(SpatialBlockIndex {
-                        rect: gate_rect,
-                        index: gate_index,
-                    });
+                    if is_dragging {
+                        is_dragging = false;
+                        circuit.gates[dragging_gate_index.unwrap()].rect.x =
+                            (mouse_pos_world.x / 64.0).floor() * 64.0;
+                        circuit.gates[dragging_gate_index.unwrap()].rect.y =
+                            (mouse_pos_world.y / 64.0).floor() * 64.0;
+                        tree.insert(SpatialBlockIndex {
+                            rect: gate_rect,
+                            index: dragging_gate_index.unwrap(),
+                        });
+                    } else {
+                        let gate_index = circuit.add_gate(Gate::new(gate_rect, current_selection));
+                        // add to tree with id
+                        tree.insert(SpatialBlockIndex {
+                            rect: gate_rect,
+                            index: gate_index,
+                        });
+                    }
                 }
             }
         }
@@ -334,19 +362,83 @@ async fn main() {
             _ => {}
         }
 
-        if is_mouse_button_pressed(MouseButton::Left) {
-            // remember the world point under cursor when starting drag
-            starting_drag_world =
-                Some(camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1)));
-        } else if is_mouse_button_down(MouseButton::Left) {
-            if let Some(start_world) = starting_drag_world {
-                let current_world =
-                    camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-                // move camera target so the world point under cursor follows the drag
-                camera.target += start_world - current_world;
+        if edition {
+            starting_drag_world = None;
+            match dragging_gate_index {
+                None => {
+                    if let Some(item) = cursor_item {
+                        if is_mouse_button_down(MouseButton::Left) {
+                            let gate = circuit.gates[item.index].clone();
+                            tree.remove(&SpatialBlockIndex {
+                                rect: gate.rect,
+                                index: item.index,
+                            });
+                            dragging_gate_index = Some(item.index);
+                            is_dragging = true;
+                        }
+                    }
+                }
+                Some(index) => {
+                    let mouse_pos_world =
+                        camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                    let gate_rect = Rect {
+                        w: 64.0,
+                        h: 64.0,
+                        x: (mouse_pos_world.x / 64.0).floor() * 64.0,
+                        y: (mouse_pos_world.y / 64.0).floor() * 64.0,
+                    };
+                    circuit.draw_gate_over_mouse(
+                        &camera,
+                        gate_rect,
+                        &circuit.gates[index].gate_type,
+                        1.0,
+                    );
+
+                    match cursor_item {
+                        None => {
+                            if is_mouse_button_released(MouseButton::Left) {
+                                let mouse_pos_world = camera.screen_to_world(Vec2::new(
+                                    mouse_position().0,
+                                    mouse_position().1,
+                                ));
+                                let gate_rect = Rect {
+                                    w: 64.0,
+                                    h: 64.0,
+                                    x: (mouse_pos_world.x / 64.0).floor() * 64.0,
+                                    y: (mouse_pos_world.y / 64.0).floor() * 64.0,
+                                };
+
+                                // add to tree with id
+                                tree.insert(SpatialBlockIndex {
+                                    rect: gate_rect,
+                                    index,
+                                });
+
+                                circuit.gates[index].rect.x = gate_rect.x;
+                                circuit.gates[index].rect.y = gate_rect.y;
+                                dragging_gate_index = None;
+                                is_dragging = false;
+                            }
+                        }
+                        Some(item) => {}
+                    }
+                }
             }
         } else {
-            starting_drag_world = None;
+            if is_mouse_button_pressed(MouseButton::Left) {
+                // remember the world point under cursor when starting drag
+                starting_drag_world =
+                    Some(camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1)));
+            } else if is_mouse_button_down(MouseButton::Left) {
+                if let Some(start_world) = starting_drag_world {
+                    let current_world =
+                        camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                    // move camera target so the world point under cursor follows the drag
+                    camera.target += start_world - current_world;
+                }
+            } else {
+                starting_drag_world = None;
+            }
         }
 
         let (_sx, sy) = mouse_wheel();
@@ -382,8 +474,8 @@ async fn main() {
 
         // draw transparent gate over mouse.
         // doesn't matter if its drawn because a gate will be drawn over it
-        match (start_gate_index, start_pin_index, start_pin_type) {
-            (None, None, None) => {
+        match start_gate_index {
+            None => {
                 let mouse_pos_world =
                     camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
                 let gate_rect = Rect {
@@ -392,7 +484,7 @@ async fn main() {
                     x: (mouse_pos_world.x / 64.0).floor() * 64.0,
                     y: (mouse_pos_world.y / 64.0).floor() * 64.0,
                 };
-                circuit.draw_gate_over_mouse(&camera, gate_rect, &current_selection);
+                circuit.draw_gate_over_mouse(&camera, gate_rect, &current_selection, 0.5);
             }
             _ => {}
         }

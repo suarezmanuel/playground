@@ -7,7 +7,7 @@ use macroquad::prelude::*;
 const GATE_SIZE: u16 = 64;
 const PIN_SIZE: u16 = 6;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Gate {
     pub rect: Rect,
     pub input: Pins,
@@ -87,7 +87,8 @@ impl Gate {
 
         let pin_pixel_side_len = PIN_SIZE as f32;
         let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+        let space_pixel_len =
+            (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
 
         let (tl_x, tl_y) = match pin.pin_type {
             PinType::Input => (self.rect.x, self.rect.y),
@@ -134,7 +135,8 @@ impl Gate {
         let mut rects: Vec<SpatialPinIndex> = Vec::new();
         let pin_pixel_side_len = PIN_SIZE as f32;
         let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+        let space_pixel_len =
+            (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
 
         for i in 1..=pin_count {
             rects.push(SpatialPinIndex {

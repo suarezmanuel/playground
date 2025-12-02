@@ -1,6 +1,6 @@
 use crate::types::pin_type::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Pin {
     pub index: usize,
     pub pin_type: PinType,
