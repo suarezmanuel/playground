@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-#[derive(Copy, Clone)] // so it can be used inside a loop
+#[derive(Copy, Clone, Debug)] // so it can be used inside a loop
 pub enum GateType {
     NOT,
     OR,

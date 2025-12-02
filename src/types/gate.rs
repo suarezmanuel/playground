@@ -30,7 +30,7 @@ impl Rotation {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Gate {
     pub rotation: Rotation,
     pub rect: Rect,

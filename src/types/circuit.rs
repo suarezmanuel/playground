@@ -335,11 +335,17 @@ impl Circuit {
         };
     }
 
-    pub fn draw_gate_over_mouse(&self, camera: &Camera2D, rect: Rect, gate_type: &GateType) {
+    pub fn draw_gate_over_mouse(
+        &self,
+        camera: &Camera2D,
+        rect: Rect,
+        gate_type: &GateType,
+        alpha: f32,
+    ) {
         // just to be sure
         if intersects(rect, camera_view_rect(camera)) {
-            let color = GateType::color(gate_type);
-            let text = GateType::text(gate_type);
+            let color = gate_type.color();
+            let text = gate_type.text();
 
             draw_rectangle(rect.x, rect.y, rect.w, rect.h, color.with_alpha(0.5));
             let dims = measure_text(text, None, FONT_SIZE, 1.0);
@@ -352,7 +358,7 @@ impl Circuit {
                 ty,
                 TextParams {
                     font_size: FONT_SIZE,
-                    color: BLACK.with_alpha(0.5),
+                    color: BLACK.with_alpha(alpha),
                     ..Default::default()
                 },
             );
