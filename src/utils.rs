@@ -88,8 +88,10 @@ pub fn draw_gates(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
     let camera_view_rect = camera_view_rect(&camera);
 
-    for gate in &circuit.gates {
-        gate.draw(camera_view_rect);
+    for optional_gate_ref in &circuit.gates {
+        if let Some(gate) = optional_gate_ref {
+            gate.draw(camera_view_rect);
+        }
     }
 }
 
@@ -126,8 +128,10 @@ pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
 
 pub fn draw_pins(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
-    for gate in &circuit.gates {
-        gate.draw_pins(camera_view_rect(&camera));
+    for optional_gate_ref in &circuit.gates {
+        if let Some(gate) = optional_gate_ref {
+            gate.draw_pins(camera_view_rect(&camera));
+        }
     }
 }
 
