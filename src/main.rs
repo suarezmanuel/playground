@@ -1,16 +1,21 @@
+use std::{alloc::System, time::SystemTime};
+
 use macroquad::prelude::*;
 
 mod events;
+mod simulator;
 mod types;
 mod ui;
-mod utils;
-mod simulator; // Import the new module
+mod utils; // Import the new module
 
 use simulator::Simulator;
 
 #[macroquad::main("Logic Sim")]
 async fn main() {
     let mut sim = Simulator::new();
+    let mut counter = 0;
+    let mut now = SystemTime::now();
+    let mut fps = 0;
 
     loop {
         if is_key_pressed(KeyCode::Escape) {
@@ -21,10 +26,18 @@ async fn main() {
 
         // 2. Render
         sim.draw();
-        
-        // 3. Debug / FPS
-        draw_text(&format!("FPS: {}", get_fps()), 20.0, 30.0, 30.0, WHITE);
 
-        next_frame().await
+        // 3. Debug / FPS
+        draw_text(&format!("FPS: {}", fps), 20.0, 30.0, 30.0, WHITE);
+
+        next_frame().await;
+        counter += 1;
+        let total_time_elapsed = now.elapsed().unwrap().as_millis() as i32;
+
+        if total_time_elapsed >= 1000 {
+            fps = counter;
+            counter = 0;
+            now = SystemTime::now();
+        }
     }
 }

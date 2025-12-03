@@ -8,21 +8,21 @@ const GATE_SIZE: u16 = 64;
 const PIN_SIZE: u16 = 6;
 const PIN_PIXEL_SIDE_LEN: f32 = PIN_SIZE as f32;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Rotation {
     Up,
     Right,
-    Down, 
-    Left
+    Down,
+    Left,
 }
 
 impl Rotation {
     pub fn as_degrees(&self) -> f32 {
         match self {
-            Rotation::Up    => 0.0,
+            Rotation::Up => 0.0,
             Rotation::Right => 90.0,
-            Rotation::Down  => 180.0,
-            Rotation::Left  => 270.0,
+            Rotation::Down => 180.0,
+            Rotation::Left => 270.0,
         }
     }
 
@@ -48,7 +48,7 @@ impl Rotation {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Gate {
     pub rotation: Rotation,
     pub rect: Rect,
@@ -116,7 +116,7 @@ impl Gate {
 
         for index in 0..input_count {
             let pin_rect = get_pin_rect(gate_rect, PinType::Input, rotation.clone(), index, input_count);
-            input.push(Pin{rect: pin_rect, index: index, pin_type: PinType::Input, wire_index: None});
+            input.push(Pin{rect: pin_rect, index: index, wire_index: None});
         }
 
         let mut output: Vec<Pin> = vec![];
@@ -124,14 +124,13 @@ impl Gate {
 
         for index in 0..output_count {
             let pin_rect = get_pin_rect(gate_rect, PinType::Output, rotation.clone(), index, output_count);
-            output.push(Pin{rect: pin_rect, index: index, pin_type: PinType::Output, wire_index: None});
+            output.push(Pin{rect: pin_rect, index: index, wire_index: None});
         }
 
-        return (input, output)
+        return (input, output);
     }
 
     pub fn offset(&mut self, offset: Vec2) {
-
         self.rect = self.rect.offset(offset);
 
         for pin in &mut self.input {

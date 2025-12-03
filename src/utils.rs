@@ -1,7 +1,8 @@
-use macroquad::prelude::*;
+use crate::types::circuit::*;
+use crate::types::gate::Gate;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
-use crate::types::circuit::*;
+use macroquad::prelude::*;
 
 pub const FONT_SIZE: u16 = 32;
 
@@ -92,34 +93,41 @@ pub fn draw_gates(circuit: &Circuit, camera: &Camera2D) {
     }
 }
 
-pub fn draw_wires(circuit: &Circuit, camera: &Camera2D) {
+pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
     set_camera(camera);
 
     for wire in &circuit.wires_meta {
-        let Vec2 { x: start_x, y: start_y } = circuit.gates[wire.source.gate_index].get_pin_rect(wire.source.pin_index, PinType::Output).center();
+        if let Some(source_gate) = circuit.gates[wire.source.gate_index].as_mut() {
+            let Vec2 {
+                x: start_x,
+                y: start_y,
+            } = source_gate
+                .get_pin_rect(wire.source.pin_index, PinType::Output)
+                .center();
 
-        for connection in &wire.connections {
-            // println!("connection pin index: {}", connection.pin_index);
-            let Vec2 { x: end_x, y: end_y } = circuit.gates[connection.gate_index].get_pin_rect(connection.pin_index, PinType::Input).center();
-        
-            let color = match circuit.wires_read[wire.wire_index] {
-                true => { YELLOW }
-                false => { BLACK }
-            };
+            for connection in &wire.connections {
+                if let Some(connection_gate) = circuit.gates[connection.gate_index].as_mut() {
+                    // println!("connection pin index: {}", connection.pin_index);
+                    let Vec2 { x: end_x, y: end_y } = connection_gate
+                        .get_pin_rect(connection.pin_index, PinType::Input)
+                        .center();
 
-            draw_line(start_x, start_y, end_x, end_y, 3.0, color);
+                    let color = match circuit.wires_read[wire.wire_index] {
+                        true => YELLOW,
+                        false => BLACK,
+                    };
+
+                    draw_line(start_x, start_y, end_x, end_y, 3.0, color);
+                }
+            }
         }
     }
 }
 
 pub fn draw_pins(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
-
     for gate in &circuit.gates {
-
         gate.draw_pins(camera_view_rect(&camera));
-
-        let pins= gate.input.iter().chain(gate.output.iter());
     }
 }
 
@@ -132,26 +140,23 @@ pub fn draw_mouse_wire(
 ) {
     match (gate_index, pin_index, pin_type) {
         (Some(gate_index), Some(pin_index), Some(pin_type)) => {
-            let gate = circuit.gates[gate_index].clone(); // this is fine because we only read and don't write
-            let rect = gate.get_pin(pin_index, pin_type).rect;
-            let Vec2 {
-                x: center_x,
-                y: center_y,
-            } = rect.center();
-            let mouse_world =
-                camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-            draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
+            if let Some(gate) = circuit.gates[gate_index].clone() {
+                // this is fine because we only read and don't write
+                let rect = gate.get_pin(pin_index, pin_type).rect;
+                let Vec2 {
+                    x: center_x,
+                    y: center_y,
+                } = rect.center();
+                let mouse_world =
+                    camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
+            }
         }
         _ => {}
     };
 }
 
-pub fn draw_gate_over_mouse(
-    camera: &Camera2D,
-    rect: Rect,
-    gate_type: &GateType,
-    alpha: f32,
-) {
+pub fn draw_gate_over_mouse(camera: &Camera2D, rect: Rect, gate_type: &GateType, alpha: f32) {
     // just to be sure
     if intersects(rect, camera_view_rect(camera)) {
         let color = gate_type.color();
