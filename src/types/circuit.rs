@@ -10,7 +10,8 @@ pub struct Circuit {
     pub wires_write: Vec<bool>,
     pub wires_freed: Vec<bool>,
     pub wires_meta: Vec<Wire>,
-    pub gates: Vec<Gate>,
+    pub gates: Vec<Option<Gate>>,
+    pub gates_freed: Vec<bool>,
 }
 
 impl Circuit {
@@ -21,8 +22,9 @@ impl Circuit {
             wires_read: vec![],
             wires_write: vec![],
             gates: Vec::new(),
+            gates_freed: vec![],
             wires_freed: vec![], // if wires_read gets really big and then all the wires are deleted, wires_freed will be wasted memory. a compression algo is needed
-            wires_meta: vec![]
+            wires_meta: vec![],
         };
     }
 
@@ -56,14 +58,31 @@ impl Circuit {
                 self.wires_freed[index] = false;
                 self.wires_read.insert(index, false);
                 self.wires_write.insert(index, false);
-                self.wires_meta.insert(index, Wire{source: Connection{ pin_index: 0, gate_index: 0}, connections: vec![], wire_index: self.wires_read.len() - 1});
+                self.wires_meta.insert(
+                    index,
+                    Wire {
+                        source: Connection {
+                            pin_index: 0,
+                            gate_index: 0,
+                        },
+                        connections: vec![],
+                        wire_index: self.wires_read.len() - 1,
+                    },
+                );
                 return index;
             }
         }
         self.wires_read.push(false);
         self.wires_write.push(false); // to make them equal in length so no problems when swapping
         self.wires_freed.push(false);
-        self.wires_meta.push(Wire{source: Connection{ pin_index: 0, gate_index: 0}, connections: vec![], wire_index: self.wires_read.len() - 1});
+        self.wires_meta.push(Wire {
+            source: Connection {
+                pin_index: 0,
+                gate_index: 0,
+            },
+            connections: vec![],
+            wire_index: self.wires_read.len() - 1,
+        });
         return self.wires_read.len() - 1;
     }
 
@@ -77,14 +96,15 @@ impl Circuit {
         let wire = &self.wires_meta[index];
         let source_gate_index = wire.source.gate_index;
         let source_pin_index = wire.source.pin_index;
-        self.gates[source_gate_index].output[source_pin_index].wire_index = None;
-        
-        for connection in wire.connections.iter() {
-            self.gates[connection.gate_index].input[connection.pin_index].wire_index = None;
+        if let Some(source_gate) = self.gates[source_gate_index].as_mut() {
+            source_gate.output[source_pin_index].wire_index = None;
         }
-
+        for connection in wire.connections.iter() {
+            if let Some(connection_gate) = self.gates[connection.gate_index].as_mut() {
+                connection_gate.input[connection.pin_index].wire_index = None;
+            }
+        }
         self.wires_meta[index].connections = vec![];
-
     }
 
     pub fn connect_wire(
@@ -127,59 +147,100 @@ impl Circuit {
             }
         }
 
-        let input_pin = &mut self.gates[input_gate_index].get_pin(input_pin_index, input_pin_type);
-        let output_pin = &mut self.gates[output_gate_index].get_pin(output_pin_index, output_pin_type);
+        if let Some(output_gate) = &mut self.gates[input_gate_index] {
+            let output_pin = output_gate.get_pin(output_pin_index, output_pin_type);
+            if let Some(input_gate) = &mut self.gates[input_gate_index] {
+                let input_pin = input_gate.get_pin(input_pin_index, input_pin_type);
 
+                match output_pin.wire_index {
+                    Some(wire_index) => {
+                        // check that they aren't connected already
+                        let connected = self.wires_meta[wire_index]
+                            .connections
+                            .find_pin_index(input_gate_index, input_pin.index)
+                            .is_some();
 
-        match output_pin.wire_index {
-            Some(wire_index) => {
-                // check that they aren't connected already
-                let connected = self.wires_meta[wire_index].connections.find_pin_index(input_gate_index, input_pin.index).is_some();
+                        if !connected {
+                            // if input_pin is part of another wire
+                            if input_pin.wire_index.is_some() {
+                                // input_pin can only be in 'connections'
+                                // if other wire only connects to input_pin, remove wire
+                                if self.wires_meta[input_pin.wire_index.unwrap()]
+                                    .connections
+                                    .len()
+                                    == 1
+                                {
+                                    self.remove_wire(input_pin.wire_index.unwrap());
+                                } else {
+                                    // if other wire has more connections, remove input_pin from connections
+                                    let index_to_remove = self.wires_meta
+                                        [input_pin.wire_index.unwrap()]
+                                    .connections
+                                    .find_pin_index(input_gate_index, input_pin.index);
+                                    if index_to_remove.is_some() {
+                                        self.wires_meta[input_pin.wire_index.unwrap()]
+                                            .connections
+                                            .remove(index_to_remove.unwrap());
+                                    }
+                                }
+                            }
 
-                if !connected {
-                    // if input_pin is part of another wire
-                    if input_pin.wire_index.is_some() { // input_pin can only be in 'connections'
-                        // if other wire only connects to input_pin, remove wire
-                        if self.wires_meta[input_pin.wire_index.unwrap()].connections.len() == 1 {
-                            self.remove_wire(input_pin.wire_index.unwrap());
-                        } else {
-                            // if other wire has more connections, remove input_pin from connections 
-                            let index_to_remove = self.wires_meta[input_pin.wire_index.unwrap()].connections.find_pin_index(input_gate_index, input_pin.index);
-                            if index_to_remove.is_some() { self.wires_meta[input_pin.wire_index.unwrap()].connections.remove(index_to_remove.unwrap()); }
+                            self.wires_meta[wire_index].connections.push(Connection {
+                                pin_index: input_pin.index,
+                                gate_index: input_gate_index,
+                            });
+                            // input_pin.wire_index = Some(wire_index);
+                            if let Some(gate) = self.gates[input_gate_index].as_mut() {
+                                gate.input[input_pin_index].wire_index = Some(wire_index); // fixed
+                            }
+                        }
+                        // if connected don't do anything
+                    }
+                    None => {
+                        // if input_pin already has a wire, remove it from other wire
+                        if input_pin.wire_index.is_some() {
+                            if self.wires_meta[input_pin.wire_index.unwrap()]
+                                .connections
+                                .len()
+                                == 1
+                            {
+                                self.remove_wire(input_pin.wire_index.unwrap());
+                            } else {
+                                let index_to_remove = self.wires_meta
+                                    [input_pin.wire_index.unwrap()]
+                                .connections
+                                .find_pin_index(input_gate_index, input_pin.index);
+                                if index_to_remove.is_some() {
+                                    self.wires_meta[input_pin.wire_index.unwrap()]
+                                        .connections
+                                        .remove(index_to_remove.unwrap());
+                                }
+                            }
+                        }
+
+                        let new_wire_index = self.new_wire();
+                        let connection = &mut self.wires_meta[new_wire_index];
+                        connection.source = Connection {
+                            pin_index: output_pin.index,
+                            gate_index: output_gate_index,
+                        };
+                        connection.connections = vec![Connection {
+                            pin_index: input_pin.index,
+                            gate_index: input_gate_index,
+                        }];
+                        {
+                            if let Some(gate) = &mut self.gates[input_gate_index] {
+                                gate.input[input_pin_index].wire_index = Some(new_wire_index);
+                                // input_pin.wire_index = Some(new_wire_index);
+                            }
+                        }
+
+                        {
+                            if let Some(gate) = &mut self.gates[output_gate_index] {
+                                gate.output[output_pin_index].wire_index = Some(new_wire_index);
+                            }
                         }
                     }
-                    
-                    self.wires_meta[wire_index].connections.push(Connection{pin_index: input_pin.index, gate_index: input_gate_index});
-                    // input_pin.wire_index = Some(wire_index); 
-                    self.gates[input_gate_index].input[input_pin_index].wire_index = Some(wire_index); // fixed
-                }
-                // if connected don't do anything
-            }
-            None => {
-                
-                // if input_pin already has a wire, remove it from other wire
-                if input_pin.wire_index.is_some() {
-                    if self.wires_meta[input_pin.wire_index.unwrap()].connections.len() == 1 {
-                        self.remove_wire(input_pin.wire_index.unwrap());
-                    } else {
-                        let index_to_remove = self.wires_meta[input_pin.wire_index.unwrap()].connections.find_pin_index(input_gate_index, input_pin.index);
-                        if index_to_remove.is_some() { self.wires_meta[input_pin.wire_index.unwrap()].connections.remove(index_to_remove.unwrap()); }
-                    }
-                }
-
-                let new_wire_index = self.new_wire();
-                let connection = &mut self.wires_meta[new_wire_index];
-                connection.source = Connection{pin_index: output_pin.index, gate_index: output_gate_index };
-                connection.connections = vec![Connection{pin_index: input_pin.index, gate_index: input_gate_index}];
-                {
-                    let gate = &mut self.gates[input_gate_index];
-                    gate.input[input_pin_index].wire_index = Some(new_wire_index);
-                    // input_pin.wire_index = Some(new_wire_index);
-                }
-
-                {
-                    let gate = &mut self.gates[output_gate_index];
-                    gate.output[output_pin_index].wire_index = Some(new_wire_index);
                 }
             }
         }
@@ -201,22 +262,23 @@ impl Circuit {
         let mut changed_wires = vec![false; self.wires_read.len()];
         // read
         for gate in &self.gates {
+            if let Some(gate) = gate {
+                for output in &gate.output {
+                    let result = self.evaluate(gate);
+                    // only do outputs by the first bit for now
+                    let output_wire_index = output.wire_index;
 
-            for output in &gate.output {
-                let result = self.evaluate(gate);
-                // only do outputs by the first bit for now
-                let output_wire_index = output.wire_index;
-
-                match output_wire_index {
-                    Some(index) => {
-                        if changed_wires[index] && self.wires_write[index] == !result {
-                            panic!("short circuit on wire {}", index);
+                    match output_wire_index {
+                        Some(index) => {
+                            if changed_wires[index] && self.wires_write[index] == !result {
+                                panic!("short circuit on wire {}", index);
+                            }
+                            self.wires_write[index] = result;
+                            changed_wires[index] = true;
                         }
-                        self.wires_write[index] = result;
-                        changed_wires[index] = true;
-                    }
-                    None => {
-                        // dont write to a wire if there's no connected wire
+                        None => {
+                            // dont write to a wire if there's no connected wire
+                        }
                     }
                 }
             }
@@ -236,7 +298,8 @@ impl Circuit {
     pub fn add_gate(&mut self, gate: Gate) -> usize {
         // not necessarily in topological order
         let index = self.gates.len();
-        self.gates.push(gate);
+        self.gates.push(Some(gate));
+        self.gates_freed.push(false);
         return index;
     }
 }

@@ -53,7 +53,7 @@ impl GateType {
             GateType::NAND => 2,
             GateType::PWR => 0,
             GateType::GND => 1,
-        }
+        };
     }
 
     pub fn output_count(&self) -> usize {
@@ -67,6 +67,6 @@ impl GateType {
             GateType::NAND => 1,
             GateType::PWR => 1,
             GateType::GND => 0,
-        }
+        };
     }
 }

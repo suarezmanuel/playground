@@ -1,7 +1,8 @@
-use macroquad::prelude::*;
+use crate::types::circuit::*;
+use crate::types::gate::Gate;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
-use crate::types::circuit::*;
+use macroquad::prelude::*;
 
 const FONT_SIZE: u16 = 32;
 
@@ -88,47 +89,60 @@ pub fn draw_gates(circuit: &Circuit, camera: &Camera2D) {
 
     for gate in &circuit.gates {
         let camera_view_rect = camera_view_rect(&camera);
-        let rect = gate.rect;
+        if let Some(gate) = gate {
+            let rect = gate.rect;
 
-        if intersects(rect, camera_view_rect) {
-            let color = GateType::color(&gate.gate_type);
-            let text = GateType::text(&gate.gate_type);
+            if intersects(rect, camera_view_rect) {
+                let color = GateType::color(&gate.gate_type);
+                let text = GateType::text(&gate.gate_type);
 
-            draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
-            let dims = measure_text(text, None, FONT_SIZE, 1.0);
-            let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-            let ty = rect.y + rect.h * 0.5 + dims.offset_y * 0.5 as f32;
-            
-            draw_text_ex(
-                text,
-                tx,
-                ty,
-                TextParams {
-                    font_size: FONT_SIZE,
-                    color: BLACK,
-                    ..Default::default()
-                },
-            );
+                draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
+                let dims = measure_text(text, None, FONT_SIZE, 1.0);
+                let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
+                let ty = rect.y + rect.h * 0.5 + dims.offset_y * 0.5 as f32;
+
+                draw_text_ex(
+                    text,
+                    tx,
+                    ty,
+                    TextParams {
+                        font_size: FONT_SIZE,
+                        color: BLACK,
+                        ..Default::default()
+                    },
+                );
+            }
         }
     }
 }
 
-pub fn draw_wires(circuit: &Circuit, camera: &Camera2D) {
+pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
     set_camera(camera);
 
     for wire in &circuit.wires_meta {
-        let Vec2 { x: start_x, y: start_y } = circuit.gates[wire.source.gate_index].get_pin_rect(wire.source.pin_index, PinType::Output).center();
+        if let Some(source_gate) = circuit.gates[wire.source.gate_index].as_mut() {
+            let Vec2 {
+                x: start_x,
+                y: start_y,
+            } = source_gate
+                .get_pin_rect(wire.source.pin_index, PinType::Output)
+                .center();
 
-        for connection in &wire.connections {
-            // println!("connection pin index: {}", connection.pin_index);
-            let Vec2 { x: end_x, y: end_y } = circuit.gates[connection.gate_index].get_pin_rect(connection.pin_index, PinType::Input).center();
-        
-            let color = match circuit.wires_read[wire.wire_index] {
-                true => { YELLOW }
-                false => { BLACK }
-            };
+            for connection in &wire.connections {
+                if let Some(connection_gate) = circuit.gates[connection.gate_index].as_mut() {
+                    // println!("connection pin index: {}", connection.pin_index);
+                    let Vec2 { x: end_x, y: end_y } = connection_gate
+                        .get_pin_rect(connection.pin_index, PinType::Input)
+                        .center();
 
-            draw_line(start_x, start_y, end_x, end_y, 3.0, color);
+                    let color = match circuit.wires_read[wire.wire_index] {
+                        true => YELLOW,
+                        false => BLACK,
+                    };
+
+                    draw_line(start_x, start_y, end_x, end_y, 3.0, color);
+                }
+            }
         }
     }
 }
@@ -139,12 +153,21 @@ pub fn draw_pins(circuit: &Circuit, camera: &Camera2D) {
     for gate in &circuit.gates {
         let camera_view_rect = camera_view_rect(&camera);
 
-        let pins= gate.input.iter().chain(gate.output.iter());
+        if let Some(gate) = gate {
+            let Gate {
+                input,
+                output,
+                gate_type,
+                rect,
+                rotation,
+            } = gate;
+            let pins = input.iter().chain(output.iter());
 
-        for pin in pins {
-            let pin_rect = pin.rect;
-            if intersects(pin_rect, camera_view_rect) {
-                draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+            for pin in pins {
+                let pin_rect = pin.rect;
+                if intersects(pin_rect, camera_view_rect) {
+                    draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+                }
             }
         }
     }
@@ -159,26 +182,23 @@ pub fn draw_mouse_wire(
 ) {
     match (gate_index, pin_index, pin_type) {
         (Some(gate_index), Some(pin_index), Some(pin_type)) => {
-            let gate = circuit.gates[gate_index].clone(); // this is fine because we only read and don't write
-            let rect = gate.get_pin(pin_index, pin_type).rect;
-            let Vec2 {
-                x: center_x,
-                y: center_y,
-            } = rect.center();
-            let mouse_world =
-                camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-            draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
+            if let Some(gate) = circuit.gates[gate_index].clone() {
+                // this is fine because we only read and don't write
+                let rect = gate.get_pin(pin_index, pin_type).rect;
+                let Vec2 {
+                    x: center_x,
+                    y: center_y,
+                } = rect.center();
+                let mouse_world =
+                    camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
+            }
         }
         _ => {}
     };
 }
 
-pub fn draw_gate_over_mouse(
-    camera: &Camera2D,
-    rect: Rect,
-    gate_type: &GateType,
-    alpha: f32,
-) {
+pub fn draw_gate_over_mouse(camera: &Camera2D, rect: Rect, gate_type: &GateType, alpha: f32) {
     // just to be sure
     if intersects(rect, camera_view_rect(camera)) {
         let color = gate_type.color();
