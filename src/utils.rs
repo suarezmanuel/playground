@@ -3,7 +3,7 @@ use crate::types::gate_type::*;
 use crate::types::pin_type::*;
 use crate::types::circuit::*;
 
-const FONT_SIZE: u16 = 32;
+pub const FONT_SIZE: u16 = 32;
 
 pub fn camera_view_rect(camera: &Camera2D) -> Rect {
     let tl = camera.screen_to_world(Vec2::new(0.0, 0.0));
@@ -85,31 +85,10 @@ pub fn intersects(a: Rect, b: Rect) -> bool {
 
 pub fn draw_gates(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
+    let camera_view_rect = camera_view_rect(&camera);
 
     for gate in &circuit.gates {
-        let camera_view_rect = camera_view_rect(&camera);
-        let rect = gate.rect;
-
-        if intersects(rect, camera_view_rect) {
-            let color = GateType::color(&gate.gate_type);
-            let text = GateType::text(&gate.gate_type);
-
-            draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
-            let dims = measure_text(text, None, FONT_SIZE, 1.0);
-            let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-            let ty = rect.y + rect.h * 0.5 + dims.offset_y * 0.5 as f32;
-            
-            draw_text_ex(
-                text,
-                tx,
-                ty,
-                TextParams {
-                    font_size: FONT_SIZE,
-                    color: BLACK,
-                    ..Default::default()
-                },
-            );
-        }
+        gate.draw(camera_view_rect);
     }
 }
 
@@ -137,16 +116,10 @@ pub fn draw_pins(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
 
     for gate in &circuit.gates {
-        let camera_view_rect = camera_view_rect(&camera);
+
+        gate.draw_pins(camera_view_rect(&camera));
 
         let pins= gate.input.iter().chain(gate.output.iter());
-
-        for pin in pins {
-            let pin_rect = pin.rect;
-            if intersects(pin_rect, camera_view_rect) {
-                draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
-            }
-        }
     }
 }
 
