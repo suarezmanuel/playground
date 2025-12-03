@@ -170,8 +170,7 @@ async fn main() {
                 let gate = circuit.gates[hover_spatial_gate.index].clone();
                 // are you hovering on a pin?
                 let pins = gate.input.iter().chain(gate.output.iter());
-                let mouse_pos_world =
-                    camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
+                let mouse_pos_world = camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
                 for pin in pins {
                     let pin_rect = pin.rect;
                     let mut hover_pin_index: Option<usize> = None;
@@ -268,10 +267,9 @@ async fn main() {
                 if is_dragging {
                     let (x, y) = mouse_position();
                     let mouse_pos_world = camera.screen_to_world(Vec2::new(x, y));
-                    circuit.gates[dragging_gate_index.unwrap()].rect.x =
-                        (mouse_pos_world.x / 64.0).floor() * 64.0;
-                    circuit.gates[dragging_gate_index.unwrap()].rect.y =
-                        (mouse_pos_world.y / 64.0).floor() * 64.0;
+
+                    let offset = Vec2 {x: mouse_pos_world.x - circuit.gates[dragging_gate_index.unwrap()].rect.x, y: mouse_pos_world.y - circuit.gates[dragging_gate_index.unwrap()].rect.y};
+                    circuit.gates[dragging_gate_index.unwrap()].offset(offset);
                 }
                 match closest_item {
                     Some(item) => {
@@ -292,10 +290,11 @@ async fn main() {
                     };
                     if is_dragging {
                         is_dragging = false;
-                        circuit.gates[dragging_gate_index.unwrap()].rect.x =
-                            (mouse_pos_world.x / 64.0).floor() * 64.0;
-                        circuit.gates[dragging_gate_index.unwrap()].rect.y =
-                            (mouse_pos_world.y / 64.0).floor() * 64.0;
+                        let offset = Vec2 {
+                        x: (mouse_pos_world.x / 64.0).floor() * 64.0 - circuit.gates[dragging_gate_index.unwrap()].rect.x,
+                        y: (mouse_pos_world.y / 64.0).floor() * 64.0 - circuit.gates[dragging_gate_index.unwrap()].rect.y
+                        };
+                        circuit.gates[dragging_gate_index.unwrap()].offset(offset);
                         tree.insert(SpatialBlockIndex {
                             rect: gate_rect,
                             index: dragging_gate_index.unwrap(),
@@ -351,24 +350,11 @@ async fn main() {
                     }
                 }
                 Some(index) => {
-                    let mouse_pos_world =
-                        camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-                    let gate_rect = Rect {
-                        w: 64.0,
-                        h: 64.0,
-                        x: (mouse_pos_world.x / 64.0).floor() * 64.0,
-                        y: (mouse_pos_world.y / 64.0).floor() * 64.0,
-                    };
-                    circuit.draw_gate_over_mouse(
-                        &camera,
-                        gate_rect,
-                        &circuit.gates[index].gate_type,
-                        1.0,
-                    );
-
+            
                     match cursor_item {
                         None => {
                             if is_mouse_button_released(MouseButton::Left) {
+
                                 let mouse_pos_world = camera.screen_to_world(Vec2::new(
                                     mouse_position().0,
                                     mouse_position().1,
@@ -386,13 +372,18 @@ async fn main() {
                                     index,
                                 });
 
-                                circuit.gates[index].rect.x = gate_rect.x;
-                                circuit.gates[index].rect.y = gate_rect.y;
+                                let offset = Vec2{x: gate_rect.x - circuit.gates[index].rect.x, y: gate_rect.y - circuit.gates[index].rect.y};
+
+                                circuit.gates[index].offset(offset);
+
                                 dragging_gate_index = None;
                                 is_dragging = false;
                             }
                         }
-                        Some(item) => {}
+                        Some(item) => {
+
+
+                        }
                     }
                 }
             }

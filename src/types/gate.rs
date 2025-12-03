@@ -89,6 +89,18 @@ impl Gate {
         return (input, output)
     }
 
+    pub fn offset(&mut self, offset: Vec2) {
+
+        self.rect = self.rect.offset(offset);
+
+        for pin in &mut self.input {
+            pin.rect = pin.rect.offset(offset);
+        }
+
+        for pin in &mut self.output {
+            pin.rect = pin.rect.offset(offset);
+        }
+    }
 
     pub fn get_pin_rect(&self, pin_index: usize, pin_type: PinType) -> Rect {
 
