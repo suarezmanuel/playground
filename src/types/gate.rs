@@ -5,7 +5,7 @@ use macroquad::prelude::*;
 
 const GATE_SIZE: u16 = 64;
 const PIN_SIZE: u16 = 6;
-const pin_pixel_side_len: f32 = PIN_SIZE as f32;
+const PIN_PIXEL_SIDE_LEN: f32 = PIN_SIZE as f32;
 
 #[derive(Clone)]
 pub enum Rotation {
@@ -58,15 +58,15 @@ impl Gate {
         fn get_pin_rect(tl_x: f32, tl_y:f32, pin_index: usize, pin_count: usize) -> Rect {
 
             let spaces_count = (pin_count + 1) as f32;
-            let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+            let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * PIN_PIXEL_SIDE_LEN) / spaces_count;
 
             return Rect {
                 x: tl_x,
                 y: tl_y
                     + space_pixel_len * ((pin_index + 1) as f32)
-                    + pin_pixel_side_len * (pin_index as f32),
-                w: pin_pixel_side_len,
-                h: pin_pixel_side_len,
+                    + PIN_PIXEL_SIDE_LEN * (pin_index as f32),
+                w: PIN_PIXEL_SIDE_LEN,
+                h: PIN_PIXEL_SIDE_LEN,
             }
         }
 
@@ -82,7 +82,7 @@ impl Gate {
         let output_count = gate_type.output_count();
 
         for index in 0..output_count {
-            let pin_rect = get_pin_rect(gate_rect.x + gate_rect.w - pin_pixel_side_len, gate_rect.y, index, output_count);
+            let pin_rect = get_pin_rect(gate_rect.x + gate_rect.w - PIN_PIXEL_SIDE_LEN, gate_rect.y, index, output_count);
             output.push(Pin{rect: pin_rect, index: index, pin_type: PinType::Output, wire_index: None});
         }
 
@@ -111,22 +111,21 @@ impl Gate {
 
         let (tl_x, tl_y) = match pin_type {
             PinType::Input => (self.rect.x, self.rect.y),
-            PinType::Output => (self.rect.x + self.rect.w - pin_pixel_side_len, self.rect.y),
+            PinType::Output => (self.rect.x + self.rect.w - PIN_PIXEL_SIDE_LEN, self.rect.y),
         };
 
         let spaces_count = (pin_count + 1) as f32;
-        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * pin_pixel_side_len) / spaces_count;
+        let space_pixel_len = (GATE_SIZE as f32 - (pin_count as f32) * PIN_PIXEL_SIDE_LEN) / spaces_count;
 
         return Rect {
             x: tl_x,
             y: tl_y
                 + space_pixel_len * ((pin_index + 1) as f32)
-                + pin_pixel_side_len * (pin_index as f32),
-            w: pin_pixel_side_len,
-            h: pin_pixel_side_len,
+                + PIN_PIXEL_SIDE_LEN * (pin_index as f32),
+            w: PIN_PIXEL_SIDE_LEN,
+            h: PIN_PIXEL_SIDE_LEN,
         }
     }
-
     // maybe not needed
     pub fn get_pin(&self, pin_index: usize, pin_type: PinType) -> Pin {
         // if not in bounds return None??? FIX

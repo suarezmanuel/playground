@@ -1,4 +1,4 @@
-use crate::GateType;
+use crate::types::gate_type::*;
 use macroquad::prelude::*;
 
 pub fn draw_ui_gate(current_selection: GateType) {

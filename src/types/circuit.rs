@@ -1,13 +1,8 @@
 use crate::types::gate::*;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
-use crate::utils::*;
 use crate::types::wires::*;
 use macroquad::prelude::*;
-use crate::types::pins::*;
-use crate::types::gate::*;
-
-const FONT_SIZE: u16 = 32;
 
 pub struct Circuit {
     pub emulation_done: bool,
@@ -243,125 +238,5 @@ impl Circuit {
         let index = self.gates.len();
         self.gates.push(gate);
         return index;
-    }
-
-    pub fn draw_gates(&self, camera: &Camera2D) {
-        set_camera(camera);
-
-        for gate in &self.gates {
-            let camera_view_rect = camera_view_rect(&camera);
-            let rect = gate.rect;
-
-            if intersects(rect, camera_view_rect) {
-                let color = GateType::color(&gate.gate_type);
-                let text = GateType::text(&gate.gate_type);
-
-                draw_rectangle(rect.x, rect.y, rect.w, rect.h, color);
-                let dims = measure_text(text, None, FONT_SIZE, 1.0);
-                let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-                let ty = rect.y + rect.h * 0.5 + dims.offset_y * 0.5 as f32;
-                
-                draw_text_ex(
-                    text,
-                    tx,
-                    ty,
-                    TextParams {
-                        font_size: FONT_SIZE,
-                        color: BLACK,
-                        ..Default::default()
-                    },
-                );
-            }
-        }
-    }
-
-    pub fn draw_wires(&self, camera: &Camera2D) {
-        set_camera(camera);
-
-        for wire in &self.wires_meta {
-            let Vec2 { x: start_x, y: start_y } = self.gates[wire.source.gate_index].get_pin_rect(wire.source.pin_index, PinType::Output).center();
-
-            for connection in &wire.connections {
-                // println!("connection pin index: {}", connection.pin_index);
-                let Vec2 { x: end_x, y: end_y } = self.gates[connection.gate_index].get_pin_rect(connection.pin_index, PinType::Input).center();
-            
-                let color = match self.wires_read[wire.wire_index] {
-                    true => { YELLOW }
-                    false => { BLACK }
-                };
-
-                draw_line(start_x, start_y, end_x, end_y, 3.0, color);
-            }
-        }
-    }
-
-    pub fn draw_pins(&self, camera: &Camera2D) {
-        set_camera(camera);
-
-        for gate in &self.gates {
-            let camera_view_rect = camera_view_rect(&camera);
-
-            let pins= gate.input.iter().chain(gate.output.iter());
-
-            for pin in pins {
-                let pin_rect = pin.rect;
-                if intersects(pin_rect, camera_view_rect) {
-                    draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
-                }
-            }
-        }
-    }
-
-    pub fn draw_mouse_wire(
-        &self,
-        camera: &Camera2D,
-        gate_index: Option<usize>,
-        pin_index: Option<usize>,
-        pin_type: Option<PinType>,
-    ) {
-        match (gate_index, pin_index, pin_type) {
-            (Some(gate_index), Some(pin_index), Some(pin_type)) => {
-                let gate = self.gates[gate_index].clone(); // this is fine because we only read and don't write
-                let rect = gate.get_pin(pin_index, pin_type).rect;
-                let Vec2 {
-                    x: center_x,
-                    y: center_y,
-                } = rect.center();
-                let mouse_world =
-                    camera.screen_to_world(Vec2::new(mouse_position().0, mouse_position().1));
-                draw_line(center_x, center_y, mouse_world.x, mouse_world.y, 3.0, BLACK);
-            }
-            _ => {}
-        };
-    }
-
-    pub fn draw_gate_over_mouse(
-        &self,
-        camera: &Camera2D,
-        rect: Rect,
-        gate_type: &GateType,
-        alpha: f32,
-    ) {
-        // just to be sure
-        if intersects(rect, camera_view_rect(camera)) {
-            let color = gate_type.color();
-            let text = gate_type.text();
-
-            draw_rectangle(rect.x, rect.y, rect.w, rect.h, color.with_alpha(0.5));
-            let dims = measure_text(text, None, FONT_SIZE, 1.0);
-            let tx = rect.x + rect.w * 0.5 - dims.width * 0.5;
-            let ty = rect.y + rect.h * 0.5 + FONT_SIZE as f32 / 4.0;
-
-            draw_text_ex(
-                text,
-                tx,
-                ty,
-                TextParams {
-                    font_size: FONT_SIZE,
-                    color: BLACK.with_alpha(alpha),
-                    ..Default::default()
-                },
-            );
-        }
     }
 }
