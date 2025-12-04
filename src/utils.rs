@@ -2,6 +2,7 @@ use crate::types::circuit::*;
 use crate::types::gate::Gate;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
+use crate::types::keys::*;
 use macroquad::prelude::*;
 
 pub const FONT_SIZE: u16 = 32;
@@ -88,18 +89,16 @@ pub fn draw_gates(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
     let camera_view_rect = camera_view_rect(&camera);
 
-    for optional_gate_ref in &circuit.gates {
-        if let Some(gate) = optional_gate_ref {
-            gate.draw(camera_view_rect);
-        }
+    for (_, gate) in &circuit.gates {
+        gate.draw(camera_view_rect);
     }
 }
 
 pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
     set_camera(camera);
 
-    for wire in &circuit.wires_meta {
-        if let Some(source_gate) = circuit.gates[wire.source.gate_index].as_mut() {
+    for (wire_key, wire) in &circuit.wires {
+        if let Some(source_gate) = circuit.gates.get(wire.source.gate_index).as_mut() {
             let Vec2 {
                 x: start_x,
                 y: start_y,
@@ -108,13 +107,13 @@ pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
                 .center();
 
             for connection in &wire.connections {
-                if let Some(connection_gate) = circuit.gates[connection.gate_index].as_mut() {
+                if let Some(connection_gate) = circuit.gates.get(connection.gate_index).as_mut() {
                     // println!("connection pin index: {}", connection.pin_index);
                     let Vec2 { x: end_x, y: end_y } = connection_gate
                         .get_pin_rect(connection.pin_index, PinType::Input)
                         .center();
 
-                    let color = match circuit.wires_read[wire.wire_index] {
+                    let color = match circuit.wires_read.get(wire_key).unwrap() {
                         true => YELLOW,
                         false => BLACK,
                     };
@@ -128,23 +127,21 @@ pub fn draw_wires(circuit: &mut Circuit, camera: &Camera2D) {
 
 pub fn draw_pins(circuit: &Circuit, camera: &Camera2D) {
     set_camera(camera);
-    for optional_gate_ref in &circuit.gates {
-        if let Some(gate) = optional_gate_ref {
-            gate.draw_pins(camera_view_rect(&camera));
-        }
+    for (_, gate) in &circuit.gates {
+        gate.draw_pins(camera_view_rect(&camera));
     }
 }
 
 pub fn draw_mouse_wire(
     circuit: &Circuit,
     camera: &Camera2D,
-    gate_index: Option<usize>,
+    gate_index: Option<GateKey>,
     pin_index: Option<usize>,
     pin_type: Option<PinType>,
 ) {
     match (gate_index, pin_index, pin_type) {
         (Some(gate_index), Some(pin_index), Some(pin_type)) => {
-            if let Some(gate) = circuit.gates[gate_index].clone() {
+            if let Some(gate) = circuit.gates.get(gate_index).clone() {
                 // this is fine because we only read and don't write
                 let rect = gate.get_pin(pin_index, pin_type).rect;
                 let Vec2 {

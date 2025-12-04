@@ -6,6 +6,7 @@ use crate::types::wires::ConnectionUtils;
 use crate::ui::draw_ui;
 use crate::utils::camera_view_rect;
 use crate::utils::draw_grid;
+use crate::types::keys::*;
 use macroquad::prelude::*;
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
 use std::fmt::Write;
@@ -14,7 +15,7 @@ use std::time::SystemTime;
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct SpatialBlockIndex {
     pub rect: Rect,
-    pub index: usize,
+    pub index: GateKey,
 }
 
 impl RTreeObject for SpatialBlockIndex {
@@ -74,10 +75,10 @@ enum InputState {
         start_world: Vec2,
     },
     GateDrag {
-        gate_id: usize,
+        gate_id: GateKey,
     },
     Wiring {
-        gate: usize,
+        gate: GateKey,
         pin: usize,
         p_type: PinType,
     },
@@ -101,7 +102,7 @@ pub struct Simulator {
     pub tree: RTree<SpatialBlockIndex>,
     pub camera: Camera2D,
     pub zoom_factor: f32,
-    pub hovered_gate_idx: Option<usize>,
+    pub hovered_gate_idx: Option<GateKey>,
     pub gate_rotation: Rotation,
 
     // State
@@ -220,7 +221,7 @@ impl Simulator {
                     if let Some((g_idx, p_idx, p_type)) = hovered_pin {
                         self.delete_wire_at_pin(g_idx, p_idx, p_type);
                     } else if let Some(g_idx) = self.hovered_gate_idx {
-                        self.delete_gate(g_idx);
+                        self.circuit.gates.remove(g_idx);
                     }
                 }
                 InputState::Wiring {
@@ -252,7 +253,7 @@ impl Simulator {
                         self.state = InputState::GateDrag { gate_id: g_idx };
                         // temporarily remove gate from tree
                         self.tree.remove(&SpatialBlockIndex {
-                            rect: self.circuit.gates[g_idx].as_ref().unwrap().rect,
+                            rect: self.circuit.gates.get(g_idx).as_ref().unwrap().rect,
                             index: g_idx,
                         });
                     }
@@ -281,7 +282,7 @@ impl Simulator {
                 }
             }
             InputState::GateDrag { gate_id } => {
-                let gate = &mut self.circuit.gates[gate_id];
+                let gate = &mut self.circuit.gates.get_mut(gate_id);
                 if let Some(gate) = gate {
                     gate.offset(Vec2 {
                         x: mouse_world.x - gate.rect.x,
@@ -310,7 +311,8 @@ impl Simulator {
             InputState::Wiring { gate, pin, p_type } => {
                 if is_mouse_button_pressed(MouseButton::Left) {
                     if let Some((to_g, to_p, to_t)) = hovered_pin {
-                        if !((gate == to_g && pin == to_p)
+                        if !((gate == to_g)
+                            || (gate == to_g && pin == to_p)
                             || (p_type.to_string() == to_t.to_string()))
                         {
                             self.circuit
@@ -389,7 +391,7 @@ impl Simulator {
             }
 
             InputState::GateDrag { gate_id } => {
-                if let Some(gate) = self.circuit.gates[gate_id].as_ref() {
+                if let Some(gate) = self.circuit.gates.get(gate_id).as_ref() {
                     let m = self
                         .camera
                         .screen_to_world(vec2(mouse_position().0, mouse_position().1));
@@ -408,7 +410,7 @@ impl Simulator {
         // draw hover gate
         match self.state {
             InputState::GateDrag { gate_id: id } => {
-               if let Some(gate) = self.circuit.gates[id].as_mut() {
+               if let Some(gate) = self.circuit.gates.get(id).as_mut() {
                    gate.draw(camera_view_rect(&self.camera))
                }
             }
@@ -428,7 +430,7 @@ impl Simulator {
 
         write!(self.log_msg, "input state: {} |", self.state.to_string()).unwrap();
         if let Some(id) = self.hovered_gate_idx {
-            write!(self.log_msg, " hovering gate index: {}", id).unwrap();
+            write!(self.log_msg, " hovering gate index: {:?}", id).unwrap();
         }
         write!(
             self.log_msg,
@@ -446,16 +448,16 @@ impl Simulator {
 
         let idx = self
             .circuit
-            .add_gate(Gate::new(rect, self.gate_rotation.clone(), gate_type));
+            .gates.insert(Gate::new(rect, self.gate_rotation.clone(), gate_type));
         self.tree.insert(SpatialBlockIndex { rect, index: idx });
     }
 
     fn find_hovered_pin(
         &self,
-        gate_idx: usize,
+        gate_idx: GateKey,
         mouse_world: Vec2,
-    ) -> Option<(usize, usize, PinType)> {
-        if let Some(gate) = &self.circuit.gates[gate_idx] {
+    ) -> Option<(GateKey, usize, PinType)> {
+        if let Some(gate) = &self.circuit.gates.get(gate_idx) {
             // Check Inputs
             for pin in &gate.input {
                 if pin.rect.contains(mouse_world) {
@@ -472,33 +474,11 @@ impl Simulator {
         None
     }
 
-    fn delete_gate(&mut self, gate_idx: usize) {
-        if let Some(optional_gate_ref) = self.circuit.gates.get_mut(gate_idx) {
-            if let Some(gate) = optional_gate_ref.take() {
-                let inputs_len = gate.input.len();
-                for p in 0..inputs_len {
-                    self.delete_wire_at_pin(gate_idx, p, PinType::Input);
-                }
-                let outputs_len = gate.output.len();
-                for p in 0..outputs_len {
-                    self.delete_wire_at_pin(gate_idx, p, PinType::Output);
-                }
-                self.circuit.gates_freed[gate_idx] = true;
-
-                self.tree.remove(&SpatialBlockIndex {
-                    rect: gate.rect,
-                    index: gate_idx,
-                });
-
-            }
-        }
-    }
-
-    fn delete_wire_at_pin(&mut self, g: usize, p: usize, t: PinType) {
-        if let Some(gate) = &mut self.circuit.gates[g] {
+    fn delete_wire_at_pin(&mut self, g: GateKey, p: usize, t: PinType) {
+        if let Some(gate) = &mut self.circuit.gates.get(g) {
             let wire_index = gate.get_pin(p, t).wire_index;
             if wire_index.is_some() {
-                let wire = &mut self.circuit.wires_meta[wire_index.unwrap()];
+                let wire = &mut self.circuit.wires.get_mut(wire_index.unwrap()).unwrap();
                 // if is a source pin of the wire
                 if (wire.source.gate_index == g && wire.source.pin_index == p)
                 // if is the only connected pin to wire
@@ -514,8 +494,8 @@ impl Simulator {
                         wire.connections.remove(element_index.unwrap());
                     } else {
                         panic!(
-                            "pin {p} of gate {g} is connected to {} but is not source or connection",
-                            wire_index.unwrap()
+                            "pin {p} of gate {:?} is connected to {:?} but is not source or connection",
+                            g, wire_index
                         );
                     }
                 }
