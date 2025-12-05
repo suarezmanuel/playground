@@ -1,10 +1,10 @@
 use crate::types::gate::*;
 use crate::types::gate_type::*;
+use crate::types::keys::*;
 use crate::types::pin_type::*;
 use crate::types::wires::*;
-use crate::types::keys::*;
 use macroquad::prelude::*;
-use slotmap::{SlotMap, SecondaryMap};
+use slotmap::{SecondaryMap, SlotMap};
 
 pub struct Circuit {
     pub emulation_done: bool,
@@ -99,7 +99,10 @@ impl Circuit {
                 match output_pin.wire_index {
                     Some(wire_index) => {
                         // check that they aren't connected already
-                        let connected = self.wires.get(wire_index).unwrap()
+                        let connected = self
+                            .wires
+                            .get(wire_index)
+                            .unwrap()
                             .connections
                             .find_pin_index(input_gate_index, input_pin.index)
                             .is_some();
@@ -109,29 +112,34 @@ impl Circuit {
                             if let Some(wire_index) = input_pin.wire_index {
                                 // input_pin can only be in 'connections'
                                 // if other wire only connects to input_pin, remove wire
-                                if self.wires.get(wire_index).unwrap()
-                                    .connections
-                                    .len()
-                                    == 1
-                                {
+                                if self.wires.get(wire_index).unwrap().connections.len() == 1 {
                                     self.wires.remove(wire_index);
                                 } else {
                                     // if other wire has more connections, remove input_pin from connections
-                                    let index_to_remove = self.wires.get(wire_index).unwrap()
-                                    .connections
-                                    .find_pin_index(input_gate_index, input_pin.index);
+                                    let index_to_remove = self
+                                        .wires
+                                        .get(wire_index)
+                                        .unwrap()
+                                        .connections
+                                        .find_pin_index(input_gate_index, input_pin.index);
                                     if index_to_remove.is_some() {
-                                        self.wires.get_mut(wire_index).unwrap()
+                                        self.wires
+                                            .get_mut(wire_index)
+                                            .unwrap()
                                             .connections
                                             .remove(index_to_remove.unwrap());
                                     }
                                 }
                             }
 
-                            self.wires.get_mut(wire_index).unwrap().connections.push(Connection {
-                                pin_index: input_pin.index,
-                                gate_index: input_gate_index,
-                            });
+                            self.wires
+                                .get_mut(wire_index)
+                                .unwrap()
+                                .connections
+                                .push(Connection {
+                                    pin_index: input_pin.index,
+                                    gate_index: input_gate_index,
+                                });
                             // input_pin.wire_index = Some(wire_index);
                             if let Some(gate) = self.gates.get_mut(input_gate_index).as_mut() {
                                 gate.input[input_pin_index].wire_index = Some(wire_index); // fixed
@@ -142,16 +150,23 @@ impl Circuit {
                     None => {
                         // if input_pin already has a wire, remove it from other wire
                         if let Some(wire_index) = input_pin.wire_index {
-                            if self.wires.get(wire_index).unwrap().connections.len() == 1 {
-                                self.wires.remove(wire_index);
+                            if let Some(wire) = self.wires.get(wire_index) {
+                                if wire.connections.len() == 1 {
+                                    self.wires.remove(wire_index);
+                                }
                             } else {
                                 // usize is correct, only wire itself references connections
-                                let index_to_remove = self.wires.get(wire_index).unwrap()
-                                .connections
-                                .find_pin_index(input_gate_index, input_pin.index).unwrap();
-                                self.wires.get_mut(wire_index).unwrap()
-                                    .connections
-                                    .remove(index_to_remove);
+                                if let Some(wire) = self.wires.get(wire_index) {
+                                    let index = wire
+                                        .connections
+                                        .find_pin_index(input_gate_index, input_pin.index)
+                                        .unwrap();
+                                    self.wires
+                                        .get_mut(wire_index)
+                                        .unwrap()
+                                        .connections
+                                        .remove(index);
+                                }
                             }
                         }
 
@@ -258,7 +273,9 @@ impl Circuit {
 
                 match output_wire_index {
                     Some(index) => {
-                        if changed_wires.get(index).is_some() && *self.wires_write.get(index).unwrap() == !result {
+                        if changed_wires.get(index).is_some()
+                            && *self.wires_write.get(index).unwrap() == !result
+                        {
                             panic!("short circuit on wire");
                         }
                         *self.wires_write.get_mut(index).unwrap() = result;

@@ -1,7 +1,7 @@
 use crate::types::circuit::*;
 use crate::types::gate_type::*;
-use crate::types::pin_type::*;
 use crate::types::keys::*;
+use crate::types::pin_type::*;
 use macroquad::prelude::*;
 
 pub const FONT_SIZE: u16 = 32;
