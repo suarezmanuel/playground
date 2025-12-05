@@ -415,11 +415,11 @@ impl Simulator {
         // draw hover gate
         match self.state {
             InputState::GateDrag { gate_id: id } => {
-               if let Some(gate) = self.circuit.gates.get(id).as_mut() {
-                   gate.draw(camera_view_rect(&self.camera));
-                   gate.draw_wires(&self.circuit, camera_view_rect(&self.camera));
-                   gate.draw_pins(camera_view_rect(&self.camera));
-               }
+                if let Some(gate) = self.circuit.gates.get(id).as_mut() {
+                    gate.draw(camera_view_rect(&self.camera));
+                    gate.draw_wires(&self.circuit, camera_view_rect(&self.camera));
+                    gate.draw_pins(camera_view_rect(&self.camera));
+                }
             }
             InputState::Wiring { gate, pin, p_type } => {
                 crate::utils::draw_mouse_wire(
