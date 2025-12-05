@@ -1,10 +1,13 @@
 use crate::types::keys::*;
 
+#[derive(Debug)]
+
 pub struct Connection {
     pub pin_index: usize,
     pub gate_index: GateKey, // all connections are input types
 }
 
+#[derive(Debug)]
 pub struct Wire {
     pub source: Connection, // output type connection
     pub connections: Vec<Connection>,

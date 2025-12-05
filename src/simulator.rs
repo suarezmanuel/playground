@@ -1,12 +1,12 @@
 use crate::types::circuit::*;
 use crate::types::gate::*;
 use crate::types::gate_type::*;
+use crate::types::keys::*;
 use crate::types::pin_type::*;
 use crate::types::wires::ConnectionUtils;
 use crate::ui::draw_ui;
 use crate::utils::camera_view_rect;
 use crate::utils::draw_grid;
-use crate::types::keys::*;
 use macroquad::prelude::*;
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
 use std::fmt::Write;
@@ -221,6 +221,11 @@ impl Simulator {
                     if let Some((g_idx, p_idx, p_type)) = hovered_pin {
                         self.delete_wire_at_pin(g_idx, p_idx, p_type);
                     } else if let Some(g_idx) = self.hovered_gate_idx {
+                        self.tree.remove(&SpatialBlockIndex {
+                            rect: self.circuit.gates.get(g_idx).as_ref().unwrap().rect,
+                            index: g_idx,
+                        });
+
                         self.circuit.gates.remove(g_idx);
                     }
                 }
@@ -410,9 +415,9 @@ impl Simulator {
         // draw hover gate
         match self.state {
             InputState::GateDrag { gate_id: id } => {
-               if let Some(gate) = self.circuit.gates.get(id).as_mut() {
-                   gate.draw(camera_view_rect(&self.camera))
-               }
+                if let Some(gate) = self.circuit.gates.get(id).as_mut() {
+                    gate.draw(camera_view_rect(&self.camera))
+                }
             }
             InputState::Wiring { gate, pin, p_type } => {
                 crate::utils::draw_mouse_wire(
@@ -448,7 +453,8 @@ impl Simulator {
 
         let idx = self
             .circuit
-            .gates.insert(Gate::new(rect, self.gate_rotation.clone(), gate_type));
+            .gates
+            .insert(Gate::new(rect, self.gate_rotation.clone(), gate_type));
         self.tree.insert(SpatialBlockIndex { rect, index: idx });
     }
 
@@ -475,28 +481,30 @@ impl Simulator {
     }
 
     fn delete_wire_at_pin(&mut self, g: GateKey, p: usize, t: PinType) {
-        if let Some(gate) = &mut self.circuit.gates.get(g) {
+        if let Some(gate) = self.circuit.gates.get(g) {
             let wire_index = gate.get_pin(p, t).wire_index;
-            if wire_index.is_some() {
-                let wire = &mut self.circuit.wires.get_mut(wire_index.unwrap()).unwrap();
-                // if is a source pin of the wire
-                if (wire.source.gate_index == g && wire.source.pin_index == p)
-                // if is the only connected pin to wire
-                || wire.connections.len() == 1 && wire.connections[0].gate_index == g && wire.connections[0].pin_index == p
-                {
-                    // remove the wire
-                    self.circuit.remove_wire(wire_index.unwrap());
-                // if there are more connections to wire
-                } else {
-                    let element_index: Option<usize> = wire.connections.find_pin_index(g, p);
-                    if element_index.is_some() {
-                        // remove from wire
-                        wire.connections.remove(element_index.unwrap());
+
+            if let Some(wirekey) = wire_index {
+                if let Some(wire) = self.circuit.wires.get_mut(wirekey) {
+                    // if is a source pin of the wire
+                    if (wire.source.gate_index == g && wire.source.pin_index == p)
+                    // if is the only connected pin to wire
+                    || wire.connections.len() == 1 && wire.connections[0].gate_index == g && wire.connections[0].pin_index == p
+                    {
+                        // remove the wire
+                        self.circuit.remove_wire(wire_index.unwrap());
+                    // if there are more connections to wire
                     } else {
-                        panic!(
-                            "pin {p} of gate {:?} is connected to {:?} but is not source or connection",
-                            g, wire_index
-                        );
+                        let element_index: Option<usize> = wire.connections.find_pin_index(g, p);
+                        if element_index.is_some() {
+                            // remove from wire
+                            wire.connections.remove(element_index.unwrap());
+                        } else {
+                            panic!(
+                                "pin {p} of gate {:?} is connected to {:?} but is not source or connection",
+                                g, wire_index
+                            );
+                        }
                     }
                 }
             }
