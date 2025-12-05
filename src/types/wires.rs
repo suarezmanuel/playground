@@ -1,5 +1,6 @@
 use crate::types::keys::*;
 
+#[derive(Clone)]
 pub struct Connection {
     pub pin_index: usize,
     pub gate_index: GateKey, // all connections are input types

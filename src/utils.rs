@@ -1,5 +1,4 @@
 use crate::types::circuit::*;
-use crate::types::gate::Gate;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
 use crate::types::keys::*;

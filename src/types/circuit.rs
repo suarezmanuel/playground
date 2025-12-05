@@ -91,7 +91,7 @@ impl Circuit {
             }
         }
 
-        if let Some(output_gate) = &mut self.gates.get(input_gate_index) {
+        if let Some(output_gate) = &mut self.gates.get(output_gate_index) {
             let output_pin = output_gate.get_pin(output_pin_index, output_pin_type);
             if let Some(input_gate) = &mut self.gates.get(input_gate_index) {
                 let input_pin = input_gate.get_pin(input_pin_index, input_pin_type);
@@ -209,7 +209,34 @@ impl Circuit {
         return key;
     }
 
-    pub fn remove_wire(&mut self, key: WireKey) {
+     pub fn remove_wire(&mut self, key: WireKey) {
+        // Step A: Get the topology data before deleting
+        // We need to know who was connected to this wire
+        let (source, destinations) = if let Some(wire) = self.wires.get(key) {
+            (wire.source.clone(), wire.connections.clone())
+        } else {
+            return; // Wire doesn't exist, nothing to do
+        };
+
+        // Step B: Clear the Source Pin (Output)
+        if let Some(gate) = self.gates.get_mut(source.gate_index) {
+            // Check if it's actually pointing to this wire before clearing
+            // (It might have moved to a new wire already)
+            if gate.output[source.pin_index].wire_index == Some(key) {
+                gate.output[source.pin_index].wire_index = None;
+            }
+        }
+
+        // Step C: Clear the Destination Pins (Inputs)
+        for dest in destinations {
+            if let Some(gate) = self.gates.get_mut(dest.gate_index) {
+                if gate.input[dest.pin_index].wire_index == Some(key) {
+                    gate.input[dest.pin_index].wire_index = None;
+                }
+            }
+        }
+
+        // Step D: Actually delete the data
         self.wires.remove(key);
         self.wires_read.remove(key);
         self.wires_write.remove(key);

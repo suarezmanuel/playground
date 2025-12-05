@@ -2,8 +2,8 @@ use crate::types::gate_type::*;
 use crate::types::pin_type::*;
 use crate::types::pins::*;
 use crate::utils::*;
+use crate::types::circuit::*;
 use macroquad::prelude::*;
-
 const GATE_SIZE: u16 = 64;
 const PIN_SIZE: u16 = 6;
 const PIN_PIXEL_SIDE_LEN: f32 = PIN_SIZE as f32;
@@ -209,6 +209,41 @@ impl Gate {
             let pin_rect = pin.rect;
             if intersects(pin_rect, camera_view_rect) {
                 draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+            }
+        }
+    }
+
+    pub fn draw_wires(&self, circuit: &Circuit, camera_view_rect: Rect) {
+        for pin in &self.output {
+            let center = pin.rect.center();
+            if let Some(wire_index) = pin.wire_index {
+                for conn in &circuit.wires.get(wire_index).unwrap().connections {
+                    let out_gate = circuit.gates.get(conn.gate_index).unwrap();
+                    let out_pin_center = out_gate.get_pin(conn.pin_index, PinType::Input).rect.center();
+                    // draw line between out_pin_center, center
+                    let color = match circuit.wires_read.get(wire_index).unwrap() {
+                        true => YELLOW,
+                        false => BLACK,
+                    };
+
+                    draw_line(center.x, center.y, out_pin_center.x, out_pin_center.y, 3.0, color);
+                }
+            }
+        }
+
+        for pin in &self.input {
+            let center = pin.rect.center();
+            if let Some(wire_index) = pin.wire_index {
+                let conn = &circuit.wires.get(wire_index).unwrap().source;
+                let in_gate = circuit.gates.get(conn.gate_index).unwrap();
+                let in_pin_center = in_gate.get_pin(conn.pin_index, PinType::Output).rect.center();
+                // draw line between in_pin_center, center
+                let color = match circuit.wires_read.get(wire_index).unwrap() {
+                    true => YELLOW,
+                    false => BLACK,
+                };
+
+                draw_line(center.x, center.y, in_pin_center.x, in_pin_center.y, 3.0, color);
             }
         }
     }
