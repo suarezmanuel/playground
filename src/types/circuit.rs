@@ -5,13 +5,31 @@ use crate::types::pin_type::*;
 use crate::types::wires::*;
 use macroquad::prelude::*;
 use slotmap::{SecondaryMap, SlotMap};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Circuit {
+    #[serde(skip)] 
     pub emulation_done: bool,
     pub wires: SlotMap<WireKey, Wire>,
+    #[serde(skip)] 
     pub wires_read: SecondaryMap<WireKey, bool>,
+    #[serde(skip)] 
     pub wires_write: SecondaryMap<WireKey, bool>,
     pub gates: SlotMap<GateKey, Gate>,
+}
+
+// When loading, Serde needs to know how to create the skipped fields.
+impl Default for Circuit {
+    fn default() -> Self {
+        Self {
+            emulation_done: false,
+            wires: SlotMap::with_key(),
+            wires_read: SecondaryMap::new(),
+            wires_write: SecondaryMap::new(),
+            gates: SlotMap::with_key(),
+        }
+    }
 }
 
 impl Circuit {

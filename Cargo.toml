@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-macroquad = "0.4.14"
+macroquad = { version = "0.4.14", features = ["glam-serde"]}
 rstar = "0.12"
-slotmap = "1.0"
+slotmap = { version = "1.0", features = ["serde"]}
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0" # Or "bincode" for binary files

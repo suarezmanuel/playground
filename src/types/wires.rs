@@ -1,12 +1,13 @@
 use crate::types::keys::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Connection {
     pub pin_index: usize,
     pub gate_index: GateKey, // all connections are input types
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Wire {
     pub source: Connection, // output type connection
     pub connections: Vec<Connection>,

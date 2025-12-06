@@ -3,6 +3,10 @@ use crate::types::gate_type::*;
 use crate::types::keys::*;
 use crate::types::pin_type::*;
 use macroquad::prelude::*;
+use macroquad::prelude::Rect;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fs;
+use std::io::{Read, Write};
 
 pub const FONT_SIZE: u16 = 32;
 
@@ -177,5 +181,95 @@ pub fn draw_gate_over_mouse(camera: &Camera2D, rect: Rect, gate_type: &GateType,
                 ..Default::default()
             },
         );
+    }
+}
+
+// A helper module to handle Rect serialization
+pub mod rect_serde {
+    use super::*;
+
+    #[derive(Serialize, Deserialize)]
+    struct RectSurrogate {
+        x: f32, y: f32, w: f32, h: f32,
+    }
+
+    pub fn serialize<S>(rect: &Rect, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        let s = RectSurrogate { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+        s.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Rect, D::Error>
+    where D: Deserializer<'de> {
+        let s = RectSurrogate::deserialize(deserializer)?;
+        Ok(Rect::new(s.x, s.y, s.w, s.h))
+    }
+}
+
+pub fn save_to_file(circuit: &Circuit) -> std::io::Result<String> {
+    // 1. Define the directory path relative to project root
+    let save_dir = "tmp/saves";
+
+    // 2. Create the directory if it doesn't exist
+    // create_dir_all does nothing if the dir already exists, which is perfect
+    fs::create_dir_all(save_dir)?;
+
+    // 3. Find the highest existing save number
+    let mut max_save_num = 0;
+
+    // Read the directory
+    if let Ok(entries) = fs::read_dir(save_dir) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                
+                // We only care about files, not subdirectories
+                if path.is_file() {
+                    // Get the filename string (e.g., "save5.json")
+                    if let Some(filename) = path.file_name().and_then(|s| s.to_str()) {
+                        // Check if it starts with "save" and ends with ".json"
+                        if filename.starts_with("save") && filename.ends_with(".json") {
+                            // Extract the middle part ("5")
+                            let num_part = filename
+                                .trim_start_matches("save")
+                                .trim_end_matches(".json");
+
+                            // Try to parse it as a number
+                            if let Ok(num) = num_part.parse::<u32>() {
+                                if num > max_save_num {
+                                    max_save_num = num;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Determine the next filename
+    let next_save_num = max_save_num + 1;
+    let file_path = format!("{}/save{}.json", save_dir, next_save_num);
+
+    // 5. Serialize and Write
+    let json_data = serde_json::to_string_pretty(circuit)?;
+    let mut file = fs::File::create(&file_path)?;
+    file.write_all(json_data.as_bytes())?;
+
+    println!("Success: Saved circuit to {}", file_path);
+    
+    Ok(file_path)
+}
+
+pub fn load_from_file(file_path: &str) -> std::io::Result<Circuit> {
+    match fs::read_to_string(file_path) {
+        Ok(contents) => {
+            let circuit: Circuit = serde_json::from_str(&contents)?;
+            println!("Loaded circuit from {}", file_path);
+            Ok(circuit)
+        }
+        Err(e) => {
+            Err(e)
+        }
     }
 }

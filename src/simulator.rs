@@ -11,6 +11,9 @@ use macroquad::prelude::*;
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
 use std::fmt::Write;
 use std::time::SystemTime;
+use crate::utils::{save_to_file, load_from_file};
+use std::io;
+
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct SpatialBlockIndex {
@@ -28,6 +31,8 @@ impl RTreeObject for SpatialBlockIndex {
         )
     }
 }
+
+const DRAG_MIN_DIST: f32 = 20.0;
 
 impl PointDistance for SpatialBlockIndex {
     fn distance_2(&self, point: &[f32; 2]) -> f32 {
@@ -104,6 +109,10 @@ pub struct Simulator {
     pub zoom_factor: f32,
     pub hovered_gate_idx: Option<GateKey>,
     pub gate_rotation: Rotation,
+    pub last_click_pos: Option<Vec2>,
+    pub last_clicked_gate: Option<GateKey>,
+
+    pub file_path: String,
 
     // State
     state: InputState,
@@ -122,6 +131,9 @@ impl Simulator {
             hovered_gate_idx: None,
             camera: Camera2D::from_display_rect(Rect::new(0., 0., screen_width(), screen_height())),
             gate_rotation: Rotation::Up,
+            last_click_pos: None,
+            last_clicked_gate: None,
+            file_path: String::from("save.json"),
             zoom_factor: 1.0,
             state: InputState::Idle,
             emulate: false,
@@ -186,6 +198,42 @@ impl Simulator {
             self.emulate = !self.emulate;
         } else if is_key_pressed(KeyCode::T) {
             self.circuit.reset_wires();
+        } else if is_key_pressed(KeyCode::S) {
+            match save_to_file(&self.circuit) {
+                Ok(path) => println!("Saved to {}", path),
+                Err(e) => println!("Error saving: {}", e),
+            }
+        } else if is_key_pressed(KeyCode::L) {
+            self.file_path = "".to_string();
+            println!("enter file path: ");
+            io::stdin()
+                .read_line(&mut self.file_path) 
+                .expect("Failed to read line");
+            self.file_path = self.file_path.trim().to_string();
+
+
+            println!("loading from: {}", &self.file_path);
+            match load_from_file(&self.file_path) { // Pass &String as &str
+                Ok(mut new_circuit) => {
+
+                    for wire_key in new_circuit.wires.keys() {
+                        new_circuit.wires_read.insert(wire_key, false);
+                        new_circuit.wires_write.insert(wire_key, false);
+                    }
+
+                    self.circuit = new_circuit;
+                    self.tree = RTree::new();
+                    for (key, gate) in &self.circuit.gates {
+                        self.tree.insert(SpatialBlockIndex {
+                            rect: gate.rect,
+                            index: key,
+                        });
+                    }
+                    // Rebuild RTree here (omitted for brevity)
+                    println!("Loaded successfully");
+                }
+                Err(e) => println!("Error loading: {}", e),
+            }
         } else if is_key_pressed(KeyCode::Up) {
             self.gate_rotation = Rotation::Up;
         } else if is_key_pressed(KeyCode::Right) {
@@ -246,6 +294,7 @@ impl Simulator {
         match self.state {
             InputState::Idle => {
                 if is_mouse_button_pressed(MouseButton::Left) {
+                    self.last_click_pos = Some(mouse_world);
                     if let Some((g, p, t)) = hovered_pin {
                         // Start Wiring
                         self.state = InputState::Wiring {
@@ -253,7 +302,19 @@ impl Simulator {
                             pin: p,
                             p_type: t,
                         };
-                    } else if let Some(g_idx) = self.hovered_gate_idx {
+                    }
+                } else if is_mouse_button_down(MouseButton::Left) {
+                    // if not hitting anything start camera pan
+                    if self.hovered_gate_idx.is_none() {
+                        self.state = InputState::CameraDrag {
+                            start_world: mouse_world,
+                        };
+                    } else {
+                        self.last_clicked_gate = self.hovered_gate_idx;
+                    }
+
+                    // if dragging actually happened, this works assuming mouse moves slowly enough
+                    if let Some(g_idx) = self.last_clicked_gate && self.last_click_pos.map(|vec| vec.distance(mouse_world) > DRAG_MIN_DIST).unwrap_or(false) {
                         // Start Dragging Gate
                         self.state = InputState::GateDrag { gate_id: g_idx };
                         // temporarily remove gate from tree
@@ -262,19 +323,17 @@ impl Simulator {
                             index: g_idx,
                         });
                     }
-                } else if is_mouse_button_down(MouseButton::Left) {
-                    // if not hitting anything start camera pan
-                    if self.hovered_gate_idx.is_none() {
-                        self.state = InputState::CameraDrag {
-                            start_world: mouse_world,
-                        };
-                    }
+                } else if is_mouse_button_released(MouseButton::Left) {
+                    self.last_clicked_gate = None
                 }
             }
+
             InputState::ChoosingGate { gate_type } => {
                 if is_mouse_button_pressed(MouseButton::Left) && self.hovered_gate_idx.is_none() {
                     self.place_gate(mouse_world, gate_type);
                     self.state = InputState::Idle;
+                    self.last_click_pos = None;     // Reset click position so drag doesn't trigger
+                    self.last_clicked_gate = None;  // Reset clicked gate
                 }
             }
             InputState::CameraDrag { start_world } => {
@@ -323,6 +382,8 @@ impl Simulator {
                             self.circuit
                                 .connect_wire(gate, to_g, pin, p_type, to_p, to_t);
                             self.state = InputState::Idle;
+                            self.last_click_pos = None;     // Reset click position so drag doesn't trigger
+                            self.last_clicked_gate = None;  // Reset clicked gate
                         }
                     }
                 }

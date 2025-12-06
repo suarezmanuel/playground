@@ -1,0 +1,558 @@
+{
+  "wires": [
+    {
+      "value": null,
+      "version": 0
+    },
+    {
+      "value": {
+        "source": {
+          "pin_index": 0,
+          "gate_index": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "connections": [
+          {
+            "pin_index": 0,
+            "gate_index": {
+              "idx": 2,
+              "version": 1
+            }
+          },
+          {
+            "pin_index": 1,
+            "gate_index": {
+              "idx": 2,
+              "version": 1
+            }
+          }
+        ]
+      },
+      "version": 1
+    }
+  ],
+  "gates": [
+    {
+      "value": null,
+      "version": 0
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 192.0,
+          "y": 192.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 192.0,
+              "y": 221.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 250.0,
+              "y": 221.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": {
+              "idx": 1,
+              "version": 1
+            }
+          }
+        ],
+        "gate_type": "NOT"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 384.0,
+          "y": 192.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 384.0,
+              "y": 209.33333,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": {
+              "idx": 1,
+              "version": 1
+            }
+          },
+          {
+            "rect": {
+              "x": 384.0,
+              "y": 232.66667,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": {
+              "idx": 1,
+              "version": 1
+            }
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 442.0,
+              "y": 221.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "OR"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 256.0,
+          "y": 256.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 256.0,
+              "y": 273.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 256.0,
+              "y": 296.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 314.0,
+              "y": 285.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "OR"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 512.0,
+          "y": 256.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 512.0,
+              "y": 273.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 512.0,
+              "y": 296.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 570.0,
+              "y": 285.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "XOR"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 384.0,
+          "y": 256.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 384.0,
+              "y": 273.33337,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 384.0,
+              "y": 296.6667,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 442.0,
+              "y": 285.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "NOR"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 320.0,
+          "y": 320.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 320.0,
+              "y": 337.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 320.0,
+              "y": 360.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 378.0,
+              "y": 349.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "XNOR"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 64.0,
+          "y": 320.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 337.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 360.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 122.0,
+              "y": 349.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "AND"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 0.0,
+          "y": 320.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 0.0,
+              "y": 337.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 0.0,
+              "y": 360.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 58.0,
+              "y": 349.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "AND"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 128.0,
+          "y": 320.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 128.0,
+              "y": 337.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 128.0,
+              "y": 360.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 186.0,
+              "y": 349.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "AND"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 64.0,
+          "y": 256.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 273.33334,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 296.66666,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 122.0,
+              "y": 285.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "AND"
+      },
+      "version": 1
+    },
+    {
+      "value": {
+        "rotation": "Up",
+        "rect": {
+          "x": 64.0,
+          "y": 192.0,
+          "w": 64.0,
+          "h": 64.0
+        },
+        "input": [
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 209.33333,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          },
+          {
+            "rect": {
+              "x": 64.0,
+              "y": 232.66667,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 1,
+            "wire_index": null
+          }
+        ],
+        "output": [
+          {
+            "rect": {
+              "x": 122.0,
+              "y": 221.0,
+              "w": 6.0,
+              "h": 6.0
+            },
+            "index": 0,
+            "wire_index": null
+          }
+        ],
+        "gate_type": "AND"
+      },
+      "version": 1
+    }
+  ]
+}

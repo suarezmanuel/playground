@@ -4,11 +4,13 @@ use crate::types::pins::*;
 use crate::utils::*;
 use crate::types::circuit::*;
 use macroquad::prelude::*;
+use serde::{Deserialize, Serialize};
 const GATE_SIZE: u16 = 64;
 const PIN_SIZE: u16 = 6;
 const PIN_PIXEL_SIDE_LEN: f32 = PIN_SIZE as f32;
+use crate::utils::rect_serde;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Rotation {
     Up,
     Right,
@@ -40,9 +42,10 @@ impl Rotation {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Gate {
     pub rotation: Rotation,
+    #[serde(with = "rect_serde")] 
     pub rect: Rect,
     pub input: Pins,
     pub output: Pins,

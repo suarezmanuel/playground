@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Debug, PartialEq)] // so it can be used inside a loop
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)] // so it can be used inside a loop
 pub enum GateType {
     NOT,
     OR,

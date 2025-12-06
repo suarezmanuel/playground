@@ -13,6 +13,7 @@ use simulator::Simulator;
 #[macroquad::main("Logic Sim")]
 async fn main() {
     let mut sim = Simulator::new();
+
     let mut counter = 0;
     let mut now = SystemTime::now();
     let mut fps = 0;
