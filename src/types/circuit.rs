@@ -62,9 +62,9 @@ impl Circuit {
             (GateType::NOR, 2) => !(get_pin(0) | get_pin(1)),
             (GateType::AND, 2) => get_pin(0) & get_pin(1),
             (GateType::NAND, 2) => !(get_pin(0) & get_pin(1)),
-            (GateType::PWR, 0) => true,
+            (GateType::IN, 0) => gate.active,
             // Assuming GND input might be connected or floating, but output is always false
-            (GateType::GND, _) => false,
+            (GateType::OUT, _) => false,
             _ => panic!("Unsupported gate type or input configuration"),
         }
     }
@@ -242,7 +242,7 @@ impl Circuit {
         return key;
     }
 
-     pub fn remove_wire(&mut self, key: WireKey) {
+    pub fn remove_wire(&mut self, key: WireKey) {
         // Step A: Get the topology data before deleting
         // We need to know who was connected to this wire
         let (source, destinations) = if let Some(wire) = self.wires.get(key) {
@@ -275,13 +275,42 @@ impl Circuit {
         self.wires_write.remove(key);
     }
 
+    pub fn remove_gate(&mut self, gate_id: GateKey) {
+        // 1. Identify all wires connected to this gate
+        let mut wires_to_remove = Vec::new();
+
+        for (wire_key, wire) in &self.wires {
+            // Check if the wire comes FROM this gate
+            if wire.source.gate_index == gate_id {
+                wires_to_remove.push(wire_key);
+                continue; // Found it, move to next wire
+            }
+
+            // Check if the wire goes TO this gate
+            for connection in &wire.connections {
+                if connection.gate_index == gate_id {
+                    wires_to_remove.push(wire_key);
+                    break; // Found it, move to next wire
+                }
+            }
+        }
+
+        // 2. Remove the identified wires
+        for w_key in wires_to_remove {
+            self.remove_wire(w_key);
+        }
+
+        // 3. Finally, remove the gate itself
+        self.gates.remove(gate_id);
+    }
+
     pub fn tick(&mut self) {
         // check for same length so no problems when swapping
         if self.wires_read.len() != self.wires_write.len() {
             panic!("wire buffers are not of the same length");
         }
 
-        let mut changed_wires: SlotMap<WireKey, bool> = SlotMap::with_key();
+        let mut changed_wires: SecondaryMap<WireKey, bool> = SecondaryMap::new();
         // read
         for (_, gate) in &self.gates {
             for output in &gate.output {
@@ -294,10 +323,10 @@ impl Circuit {
                         if changed_wires.get(index).is_some()
                             && *self.wires_write.get(index).unwrap() == !result
                         {
-                            panic!("short circuit on wire");
+                            panic!("short circuit on wire {:?}", index);
                         }
                         *self.wires_write.get_mut(index).unwrap() = result;
-                        changed_wires.insert(true);
+                        changed_wires.insert(index, true);
                     }
                     None => {
                         // dont write to a wire if there's no connected wire

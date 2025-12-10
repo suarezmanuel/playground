@@ -10,7 +10,7 @@ const PIN_SIZE: u16 = 6;
 const PIN_PIXEL_SIDE_LEN: f32 = PIN_SIZE as f32;
 use crate::utils::rect_serde;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum Rotation {
     Up,
     Right,
@@ -46,29 +46,31 @@ impl Rotation {
 pub struct Gate {
     pub rotation: Rotation,
     #[serde(with = "rect_serde")] 
-    pub rect: Rect,
+    pub rect: Rect, //switch to usize for gates (x,y), make lerp
     pub input: Pins,
     pub output: Pins,
     pub gate_type: GateType,
+    pub active: bool,
 }
 
 impl Gate {
     pub fn new(rect: Rect, rotation: Rotation, gate_type: GateType) -> Gate {
-        let (input, output) = Self::get_pins(rect, rotation.clone(), gate_type);
+        let (input, output) = Self::get_pins(rect, gate_type.clone(), rotation.clone());
         println!("rect x: {} y: {}", rect.x, rect.y);
         return Gate {
             rotation: rotation.clone(),
             rect: rect,
             input: input,
             output: output,
-            gate_type: gate_type,
+            gate_type: gate_type.clone(),
+            active: true,
         };
     }
 
     pub fn get_pins(
         gate_rect: Rect,
-        rotation: Rotation,
         gate_type: GateType,
+        rotation: Rotation,
     ) -> (Vec<Pin>, Vec<Pin>) {
         fn get_pin_rect(
             gate_rect: Rect,
@@ -182,9 +184,9 @@ impl Gate {
         };
     }
 
-    pub fn draw(&self, camera_view_rect: Rect) {
+    pub fn draw(&self, camera_view_rect: Rect, color: Color) {
         if intersects(self.rect, camera_view_rect) {
-            let color = GateType::color(&self.gate_type);
+
             let text = GateType::text(&self.gate_type);
 
             draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, color);
@@ -205,13 +207,19 @@ impl Gate {
         }
     }
 
-    pub fn draw_pins(&self, camera_view_rect: Rect) {
+    pub fn draw_pins(&self, circuit: &Circuit, camera_view_rect: Rect, base_color: Color) {
         let pins = self.input.iter().chain(self.output.iter());
 
         for pin in pins {
             let pin_rect = pin.rect;
             if intersects(pin_rect, camera_view_rect) {
-                draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, BLACK);
+                let mut color = base_color;
+                if let Some(idx) = pin.wire_index {
+                    if *circuit.wires_read.get(idx).unwrap() == true {
+                        color = BLACK.lerp(YELLOW, 0.4);
+                    }
+                }
+                draw_rectangle(pin_rect.x, pin_rect.y, pin_rect.w, pin_rect.h, color);
             }
         }
     }

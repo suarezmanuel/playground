@@ -13,6 +13,12 @@ pub struct Wire {
     pub connections: Vec<Connection>,
 }
 
+impl Wire {
+    pub fn new(source: Connection, connections: Vec<Connection>) -> Wire {
+        return Wire{source: source, connections: connections};
+    }
+}
+
 pub trait ConnectionUtils {
     fn find_pin_index(&self, gate_index: GateKey, pin_index: usize) -> Option<usize>;
 }

@@ -1,0 +1,47 @@
+## PENDING
+
+- switch 'index' to 'key', 'start' to 'initial'
+- fix the grid to be in actual pixels and not arbitrary size, the zooming looks unnatural and some lines are drawn with different widths
+- profile the code (in ui) and make it optimized:
+    - make the game more responsive, make interactions take 1 frame or 2 at most
+    - dont draw wires that don't intersect the camera_view_rect
+    - parallel computing for ticks
+    - merge sub circuits into formulas
+    - start using references with lifetime
+    - do imports affect runtime??
+- make a custom rect type that uses usize for (x,y) instead of f32 to be more space efficient, either way
+all rects are aligned it would help enforce alignment when drawing
+- implement a lerp helper to Color
+- capability to move around selection of gates
+- make compressed save files smaller copy paste, 'clock.save' should be much smaller. maybe don't try to compress json, and make a more friendly format.
+- make an actual ui:
+    - an infinite droptable similar to a debugger
+    - some foldable statistics about current circuit
+    - make keyboard strokes register in game, and input requests (make a terminal)
+    - add a debug mode to highlight points and rects, lines
+- don't make esc actually exit, and make it more like right click (needs more thinking)
+
+========================================
+
+## WORKING ON
+
+- change 'DragGate' to 'DraggingGate'
+- check before accepting drag-drop that there is no intersection with tree, lacking in DragGate and DraggingSelectedGates
+- allow for deletion of selection of gates
+
+- make custom gates from selection:
+    - inputs and outputs are now WireKey and not pins
+    - text size of wire 
+    - moving custom gates
+    - allow for nested custom gates
+    - saving and loading custom gates
+
+========================================
+
+## DONE 
+
+X pasting on already existing gates shouldn't be possible
+X FIX: dragging, doing shift and right clicking places an already dragged gate
+X lerp selected gates with blue ; added some more InputStates, color, base_color fields to Gate::draw, Gate::draw_pins
+X allow for dragging a selection of gates
+X make an 'align' helper trait for f32.

@@ -1,7 +1,9 @@
 use macroquad::prelude::*;
 use serde::{Serialize, Deserialize};
+use crate::types::keys::*;
+use crate::utils::color_serde;
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)] // so it can be used inside a loop
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)] // so it can be used inside a loop
 pub enum GateType {
     NOT,
     OR,
@@ -10,8 +12,16 @@ pub enum GateType {
     XNOR,
     AND,
     NAND,
-    PWR,
-    GND,
+    IN,
+    OUT,
+    CUSTOM{
+    gates: Vec<GateKey>, // all gates except input / output
+    #[serde(with = "color_serde")] 
+    color: Color, 
+    text: String,
+    inputs: Vec<WireKey>, // all wires that have input / output as source, should be generated top-down
+    outputs: Vec<WireKey>
+    },
 }
 
 impl GateType {
@@ -24,8 +34,9 @@ impl GateType {
             GateType::NOR => ORANGE,
             GateType::AND => PURPLE,
             GateType::NAND => BROWN,
-            GateType::PWR => YELLOW,
-            GateType::GND => DARKGRAY,
+            GateType::IN => YELLOW,
+            GateType::OUT => DARKGRAY,
+            GateType::CUSTOM{color, ..} => *color,
         };
     }
 
@@ -38,8 +49,9 @@ impl GateType {
             GateType::NOR => "nor",
             GateType::AND => "and",
             GateType::NAND => "nand",
-            GateType::PWR => "pwr",
-            GateType::GND => "gnd",
+            GateType::IN => "in",
+            GateType::OUT => "out",
+            GateType::CUSTOM {text, .. } => text,
         };
     }
 
@@ -52,8 +64,9 @@ impl GateType {
             GateType::NOR => 2,
             GateType::AND => 2,
             GateType::NAND => 2,
-            GateType::PWR => 0,
-            GateType::GND => 1,
+            GateType::IN => 0,
+            GateType::OUT => 1,
+            GateType::CUSTOM {inputs, .. } => inputs.len(),
         };
     }
 
@@ -66,8 +79,9 @@ impl GateType {
             GateType::NOR => 1,
             GateType::AND => 1,
             GateType::NAND => 1,
-            GateType::PWR => 1,
-            GateType::GND => 0,
+            GateType::IN => 1,
+            GateType::OUT => 0,
+            GateType::CUSTOM { outputs, .. } => outputs.len(),
         };
     }
 }

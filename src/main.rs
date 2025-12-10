@@ -1,8 +1,7 @@
-use std::{alloc::System, time::SystemTime};
+use std::{time::SystemTime};
 
 use macroquad::prelude::*;
 
-mod events;
 mod simulator;
 mod types;
 mod ui;

@@ -3,12 +3,14 @@ use crate::types::gate::*;
 use crate::types::gate_type::*;
 use crate::types::keys::*;
 use crate::types::pin_type::*;
-use crate::types::wires::ConnectionUtils;
+use crate::types::wires::*;
+use crate::utils::*;
 use crate::ui::draw_ui;
 use crate::utils::camera_view_rect;
 use crate::utils::draw_grid;
 use macroquad::prelude::*;
 use rstar::{AABB, PointDistance, RTree, RTreeObject};
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::time::SystemTime;
 use crate::utils::{save_to_file, load_from_file};
@@ -32,7 +34,7 @@ impl RTreeObject for SpatialBlockIndex {
     }
 }
 
-const DRAG_MIN_DIST: f32 = 20.0;
+const DRAG_MIN_DIST: f32 = 5.0;
 
 impl PointDistance for SpatialBlockIndex {
     fn distance_2(&self, point: &[f32; 2]) -> f32 {
@@ -70,16 +72,21 @@ impl PointDistance for SpatialBlockIndex {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 enum InputState {
     Idle,
     ChoosingGate {
         gate_type: GateType,
+        gate_rotation: Rotation
     },
-    CameraDrag {
+    DragCamera {
         start_world: Vec2,
     },
-    GateDrag {
+    ClickGate {
+        initial_click_pos: Vec2,
+        gate_key: GateKey,
+    },
+    DragGate {
         gate_id: GateKey,
     },
     Wiring {
@@ -87,16 +94,47 @@ enum InputState {
         pin: usize,
         p_type: PinType,
     },
+    PastingGates {
+        initial_intersection: Vec<SpatialBlockIndex>,
+        initial_rect: Rect,
+        mouse_rect: Rect
+    },
+    SelectingGates {
+        start_pos: Vec2,
+        selection: Vec<SpatialBlockIndex>,
+        gates_rect: Rect,
+        selection_rect: Rect,
+    }, 
+    SelectedGates {
+        gates: Vec<SpatialBlockIndex>,
+        gates_rect: Rect,
+    },
+    ClickSelectedGates {
+        initial_click_pos: Vec2,
+        initial_gates_rect: Rect,
+        gates: Vec<SpatialBlockIndex>,
+    },
+    DraggingSelectedGates {
+        initial_gates: Vec<SpatialBlockIndex>,
+        gates: Vec<SpatialBlockIndex>,
+        initial_click_pos:  Vec2,
+    },
 }
 
 impl InputState {
     pub fn to_string(&self) -> &str {
         match self {
             InputState::Idle => "idle",
-            InputState::ChoosingGate { gate_type } => "choosing gate",
-            InputState::CameraDrag { start_world } => "camera drag",
-            InputState::GateDrag { gate_id } => "gate drag",
-            InputState::Wiring { gate, pin, p_type } => "wiring",
+            InputState::ChoosingGate { .. } => "choosing gate",
+            InputState::DragCamera { .. } => "camera drag",
+            InputState::ClickGate { .. } => "clicking gate",
+            InputState::DragGate { .. } => "gate drag",
+            InputState::Wiring { .. } => "wiring",
+            InputState::PastingGates { ..} => "pasting gates",
+            InputState::SelectingGates { .. } => "selecting gates",
+            InputState::SelectedGates { .. } => "selected gates",
+            InputState::ClickSelectedGates { .. } => "clicking selected gates",
+            InputState::DraggingSelectedGates{ .. } => "dragging selecting gates",
         }
     }
 }
@@ -104,23 +142,17 @@ impl InputState {
 pub struct Simulator {
     // Systems
     pub circuit: Circuit,
-    pub tree: RTree<SpatialBlockIndex>,
     pub camera: Camera2D,
     pub zoom_factor: f32,
-    pub hovered_gate_idx: Option<GateKey>,
-    pub gate_rotation: Rotation,
-    pub last_click_pos: Option<Vec2>,
-    pub last_clicked_gate: Option<GateKey>,
-
-    pub file_path: String,
-
-    // State
-    state: InputState,
 
     // Simulation settings
     pub emulate: bool,
-    last_tick: SystemTime,
     pub log_msg: String,
+
+    // State
+    tree: RTree<SpatialBlockIndex>,
+    state: InputState,
+    last_tick: SystemTime,
 }
 
 impl Simulator {
@@ -128,12 +160,7 @@ impl Simulator {
         Self {
             circuit: Circuit::new(),
             tree: RTree::new(),
-            hovered_gate_idx: None,
             camera: Camera2D::from_display_rect(Rect::new(0., 0., screen_width(), screen_height())),
-            gate_rotation: Rotation::Up,
-            last_click_pos: None,
-            last_clicked_gate: None,
-            file_path: String::from("save.json"),
             zoom_factor: 1.0,
             state: InputState::Idle,
             emulate: false,
@@ -145,7 +172,8 @@ impl Simulator {
     pub fn update(&mut self) {
         self.log_msg.clear();
 
-        if self.emulate && (self.last_tick.elapsed().unwrap().as_millis() as i32 > 1000) {
+        // if self.emulate && (self.last_tick.elapsed().unwrap().as_millis() as i32 > 1000) {
+        if self.emulate {
             self.circuit.tick();
             self.last_tick = SystemTime::now();
         }
@@ -160,66 +188,83 @@ impl Simulator {
             self.state = InputState::Idle;
         } else if is_key_pressed(KeyCode::Key1) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::NOT,
+                gate_type: GateType::AND,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key2) {
             self.state = InputState::ChoosingGate {
                 gate_type: GateType::OR,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key3) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::XOR,
+                gate_type: GateType::NOT,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key4) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::NOR,
+                gate_type: GateType::XOR,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key5) {
             self.state = InputState::ChoosingGate {
                 gate_type: GateType::XNOR,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key6) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::AND,
+                gate_type: GateType::NOR,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key7) {
             self.state = InputState::ChoosingGate {
                 gate_type: GateType::NAND,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key8) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::PWR,
+                gate_type: GateType::IN,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::Key9) {
             self.state = InputState::ChoosingGate {
-                gate_type: GateType::GND,
+                gate_type: GateType::OUT,
+                gate_rotation: Rotation::Up,
             };
         } else if is_key_pressed(KeyCode::R) {
             self.emulate = !self.emulate;
         } else if is_key_pressed(KeyCode::T) {
             self.circuit.reset_wires();
         } else if is_key_pressed(KeyCode::S) {
-            match save_to_file(&self.circuit) {
+            println!("enter file name: ");
+            let mut file_name: String = "".to_string();
+            io::stdin()
+                .read_line(&mut file_name) 
+                .expect("Failed to read line");
+
+            match save_to_file(&self.circuit, file_name.trim().to_string()) {
                 Ok(path) => println!("Saved to {}", path),
                 Err(e) => println!("Error saving: {}", e),
             }
         } else if is_key_pressed(KeyCode::L) {
-            self.file_path = "".to_string();
-            println!("enter file path: ");
+            let mut input = "".to_string();
+            println!("enter file name: ");
             io::stdin()
-                .read_line(&mut self.file_path) 
+                .read_line(&mut input) 
                 .expect("Failed to read line");
-            self.file_path = self.file_path.trim().to_string();
 
+            let file_path = "tmp/saves/".to_string() + input.trim();
 
-            println!("loading from: {}", &self.file_path);
-            match load_from_file(&self.file_path) { // Pass &String as &str
+            println!("loading from: {}", &file_path);
+            match load_from_file(&file_path) { // Pass &String as &str
                 Ok(mut new_circuit) => {
 
                     for wire_key in new_circuit.wires.keys() {
                         new_circuit.wires_read.insert(wire_key, false);
                         new_circuit.wires_write.insert(wire_key, false);
                     }
+
+                    println!("gates {:?} \nwires {:?} \nwires_r {:?} \nwires_w {:?} \nemulation_done {:?}", new_circuit.gates, new_circuit.wires, new_circuit.wires_read, new_circuit.wires_write, new_circuit.emulation_done);
 
                     self.circuit = new_circuit;
                     self.tree = RTree::new();
@@ -234,136 +279,148 @@ impl Simulator {
                 }
                 Err(e) => println!("Error loading: {}", e),
             }
-        } else if is_key_pressed(KeyCode::Up) {
-            self.gate_rotation = Rotation::Up;
-        } else if is_key_pressed(KeyCode::Right) {
-            self.gate_rotation = Rotation::Right;
-        } else if is_key_pressed(KeyCode::Down) {
-            self.gate_rotation = Rotation::Down;
-        } else if is_key_pressed(KeyCode::Left) {
-            self.gate_rotation = Rotation::Left;
+        } 
+    
+        let mouse_screen = Vec2::new(mouse_position().0, mouse_position().1);
+        let mouse_world = self.camera.screen_to_world(mouse_screen);
+
+        match self.state.clone() {
+            InputState::Idle => {
+                if is_key_pressed(KeyCode::LeftShift) {
+                    self.state = InputState::SelectingGates { start_pos: mouse_world, gates_rect: Rect::new(mouse_world.x, mouse_world.y, 0.0, 0.0), selection_rect: Rect::new(mouse_world.x, mouse_world.y, 0.0, 0.0), selection: vec![]};
+                }
+            }
+            InputState::ChoosingGate { .. } => {
+                if let InputState::ChoosingGate { gate_rotation, ..} = &mut self.state {
+                    if is_key_pressed(KeyCode::Left) {
+                        *gate_rotation = Rotation::Left;
+                    } else if is_key_pressed(KeyCode::Right) {
+                        *gate_rotation = Rotation::Right;
+                    } else if is_key_pressed(KeyCode::Up) {
+                        *gate_rotation = Rotation::Up;
+                    } else if is_key_pressed(KeyCode::Down) {
+                        *gate_rotation = Rotation::Down;
+                    }
+                }
+            }
+            InputState::SelectedGates { gates, gates_rect } => {
+                // if something was selected, then when right click or click not on a gate
+                if is_key_down(KeyCode::LeftControl) && is_key_down(KeyCode::C) {
+                    self.state = InputState::PastingGates{ initial_rect: gates_rect, mouse_rect: gates_rect, initial_intersection: gates };
+                }
+            }
+            _ => {}
         }
     }
 
     pub fn handle_mouse(&mut self) {
         let mouse_screen = Vec2::new(mouse_position().0, mouse_position().1);
         let mouse_world = self.camera.screen_to_world(mouse_screen);
+        let mouse_aligned = mouse_world.div_euclid((64.0, 64.0).into()).floor().mul_add((64.0, 64.0).into(), (0.0, 0.0).into());
 
         // find out hover
-        self.hovered_gate_idx = self
+        let hovered_gate_key = self
             .tree
             .locate_at_point(&[mouse_world.x, mouse_world.y])
             .and_then(|item| Some(item.index));
 
-        let hovered_pin = if let Some(g_idx) = self.hovered_gate_idx {
+        let hovered_pin = if let Some(g_idx) = hovered_gate_key {
             self.find_hovered_pin(g_idx, mouse_world)
         } else {
             None
         };
 
-        if is_mouse_button_pressed(MouseButton::Right) {
-            match self.state {
-                InputState::Idle => {
-                    self.state = InputState::Idle;
-
+        match self.state.clone() {
+            InputState::Idle => {
+                if is_mouse_button_pressed(MouseButton::Right) {
                     if let Some((g_idx, p_idx, p_type)) = hovered_pin {
                         self.delete_wire_at_pin(g_idx, p_idx, p_type);
-                    } else if let Some(g_idx) = self.hovered_gate_idx {
+                    } else if let Some(g_idx) = hovered_gate_key {
                         self.tree.remove(&SpatialBlockIndex {
                             rect: self.circuit.gates.get(g_idx).as_ref().unwrap().rect,
                             index: g_idx,
                         });
-
-                        self.circuit.gates.remove(g_idx);
+                        self.circuit.remove_gate(g_idx);
                     }
-                }
-                InputState::Wiring {
-                    gate: _,
-                    pin: _,
-                    p_type: _,
-                } => {
-                    self.state = InputState::Idle;
-                }
-                InputState::GateDrag { gate_id: _ } => {}
-                _ => {
-                    self.state = InputState::Idle;
-                }
-            }
-        }
-
-        match self.state {
-            InputState::Idle => {
-                if is_mouse_button_pressed(MouseButton::Left) {
-                    self.last_click_pos = Some(mouse_world);
+                } else if is_mouse_button_pressed(MouseButton::Left) {
                     if let Some((g, p, t)) = hovered_pin {
-                        // Start Wiring
+                        // Wiring starts immediately (pins are small, no drag check needed usually)
                         self.state = InputState::Wiring {
                             gate: g,
                             pin: p,
                             p_type: t,
                         };
+                    } else if let Some(gate_key) = hovered_gate_key {
+                        self.state = InputState::ClickGate { initial_click_pos: mouse_world, gate_key }
                     }
                 } else if is_mouse_button_down(MouseButton::Left) {
-                    // if not hitting anything start camera pan
-                    if self.hovered_gate_idx.is_none() {
-                        self.state = InputState::CameraDrag {
-                            start_world: mouse_world,
-                        };
-                    } else {
-                        self.last_clicked_gate = self.hovered_gate_idx;
-                    }
-
-                    // if dragging actually happened, this works assuming mouse moves slowly enough
-                    if let Some(g_idx) = self.last_clicked_gate && self.last_click_pos.map(|vec| vec.distance(mouse_world) > DRAG_MIN_DIST).unwrap_or(false) {
-                        // Start Dragging Gate
-                        self.state = InputState::GateDrag { gate_id: g_idx };
-                        // temporarily remove gate from tree
-                        self.tree.remove(&SpatialBlockIndex {
-                            rect: self.circuit.gates.get(g_idx).as_ref().unwrap().rect,
-                            index: g_idx,
-                        });
-                    }
-                } else if is_mouse_button_released(MouseButton::Left) {
-                    self.last_clicked_gate = None
-                }
+                    // If we didn't click a gate (background), start Camera Drag
+                    // (You can add a threshold here too if you want, but immediate is usually fine for panning)
+                    self.state = InputState::DragCamera {
+                        start_world: mouse_world,
+                    };
+                } 
             }
-
-            InputState::ChoosingGate { gate_type } => {
-                if is_mouse_button_pressed(MouseButton::Left) && self.hovered_gate_idx.is_none() {
-                    self.place_gate(mouse_world, gate_type);
+            InputState::ChoosingGate { gate_type, gate_rotation } => {
+                if is_mouse_button_pressed(MouseButton::Right) {
                     self.state = InputState::Idle;
-                    self.last_click_pos = None;     // Reset click position so drag doesn't trigger
-                    self.last_clicked_gate = None;  // Reset clicked gate
+                } else if is_mouse_button_pressed(MouseButton::Left) && hovered_gate_key.is_none() {
+                    self.place_gate(mouse_world, gate_type, gate_rotation);
+                    self.state = InputState::Idle;
                 }
             }
-            InputState::CameraDrag { start_world } => {
+            InputState::DragCamera { start_world } => {
                 if is_mouse_button_down(MouseButton::Left) {
                     let current_world = self.camera.screen_to_world(mouse_screen);
                     self.camera.target += start_world - current_world;
                 } else {
-                    // if just released left click
                     self.state = InputState::Idle;
                 }
             }
-            InputState::GateDrag { gate_id } => {
+            InputState::ClickGate { initial_click_pos, gate_key } => {
+                // if left click is released 
+                if is_mouse_button_released(MouseButton::Left) {
+                    // mouse_world is equal to initial_click_pos its a click (what if they with luck move the mouse back to start without going farther than MIN)
+                    if mouse_world == initial_click_pos {
+                        if let Some(gate) = self.circuit.gates.get_mut(gate_key) && gate.gate_type == GateType::IN {
+                            gate.active = !gate.active;
+                        }
+                    }
+                    self.state = InputState::Idle;
+                } else {
+                    // if distance from initial_click_pos to mouse_world is more than MIN
+                    let dist = initial_click_pos.distance(mouse_world);
+                    if dist > DRAG_MIN_DIST {
+                        // Remove from tree for the duration of the drag
+                        if let Some(gate) = self.circuit.gates.get(gate_key) {
+                            self.tree.remove(&SpatialBlockIndex {
+                                rect: gate.rect,
+                                index: gate_key,
+                            });
+                        }
+                        self.state = InputState::DragGate { gate_id: gate_key };
+                    }
+                }
+            }
+            InputState::DragGate { gate_id } => {
                 let gate = &mut self.circuit.gates.get_mut(gate_id);
                 if let Some(gate) = gate {
                     gate.offset(Vec2 {
-                        x: mouse_world.x - gate.rect.x,
-                        y: mouse_world.y - gate.rect.y,
+                        x: mouse_world.x - gate.rect.x - gate.rect.w * 0.5,
+                        y: mouse_world.y - gate.rect.y - gate.rect.h * 0.5,
                     });
 
-                    if is_mouse_button_pressed(MouseButton::Left) && self.hovered_gate_idx.is_none()
-                        || is_mouse_button_released(MouseButton::Left)
-                            && self.hovered_gate_idx.is_none()
-                    {
-                        let grid_x = (mouse_world.x / 64.0).floor() * 64.0;
-                        let grid_y = (mouse_world.y / 64.0).floor() * 64.0;
+                    if is_mouse_button_released(MouseButton::Left) {
+                        // Snap to grid on release
+                        let grid_x = mouse_world.x.align(64.0);
+                        let grid_y = mouse_world.y.align(64.0);
 
                         gate.offset(Vec2 {
                             x: grid_x - gate.rect.x,
                             y: grid_y - gate.rect.y,
                         });
+                        
+                        // Re-insert into tree
                         self.tree.insert(SpatialBlockIndex {
                             rect: gate.rect,
                             index: gate_id,
@@ -373,6 +430,10 @@ impl Simulator {
                 }
             }
             InputState::Wiring { gate, pin, p_type } => {
+                if is_mouse_button_pressed(MouseButton::Right) {
+                    self.state = InputState::Idle;
+                }
+
                 if is_mouse_button_pressed(MouseButton::Left) {
                     if let Some((to_g, to_p, to_t)) = hovered_pin {
                         if !((gate == to_g)
@@ -382,9 +443,212 @@ impl Simulator {
                             self.circuit
                                 .connect_wire(gate, to_g, pin, p_type, to_p, to_t);
                             self.state = InputState::Idle;
-                            self.last_click_pos = None;     // Reset click position so drag doesn't trigger
-                            self.last_clicked_gate = None;  // Reset clicked gate
                         }
+                    }
+                }
+            }
+            // read from start_pos
+            InputState::SelectingGates { start_pos, selection, gates_rect, .. } => {
+
+                if is_mouse_button_released(MouseButton::Left) || is_mouse_button_pressed(MouseButton::Left) {
+                    self.state = InputState::SelectedGates { gates: selection, gates_rect };
+                } else if is_mouse_button_pressed(MouseButton::Right) {
+                    self.state = InputState::Idle;
+                } else {
+                    let current_rect = Rect::new(
+                        start_pos.x.min(mouse_world.x),
+                        start_pos.y.min(mouse_world.y),
+                        (mouse_world.x - start_pos.x).abs(),
+                        (mouse_world.y - start_pos.y).abs(),
+                    );
+
+                    let envelope = AABB::from_corners(
+                        [current_rect.x, current_rect.y],
+                        [current_rect.x + current_rect.w, current_rect.y + current_rect.h],
+                    );
+
+                    let spatial_gates: Vec<SpatialBlockIndex> = self.tree
+                    .locate_in_envelope_intersecting(&envelope)
+                    .map(|item| *item) // Extract the GateKey
+                    .collect();
+
+                    let current_gates_rect;
+
+                    if spatial_gates.len() > 0 {
+                        
+                        let mut min_x = spatial_gates[0].rect.x;
+                        let mut min_y = spatial_gates[0].rect.y;
+                        let mut max_x = spatial_gates[0].rect.x + spatial_gates[0].rect.w;
+                        let mut max_y = spatial_gates[0].rect.y + spatial_gates[0].rect.h;
+
+                        for idx in &spatial_gates {
+                            min_x = min_x.min(idx.rect.x);
+                            min_y = min_y.min(idx.rect.y);
+                            max_x = max_x.max(idx.rect.x + idx.rect.w);
+                            max_y = max_y.max(idx.rect.y + idx.rect.h);
+                        }
+
+                        current_gates_rect = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y);
+
+                    
+                        if let InputState::SelectingGates { gates_rect, ..} = &mut self.state {
+                            *gates_rect = current_gates_rect;
+                        }
+                    }
+
+                    if let InputState::SelectingGates { selection_rect, selection, ..} = &mut self.state {
+                        *selection_rect = current_rect;
+                        *selection = spatial_gates;
+                    }
+                }
+            }
+            // dont read from params
+            InputState::PastingGates { initial_intersection, initial_rect, mouse_rect } => {
+
+                if is_mouse_button_pressed(MouseButton::Right) {
+                    self.state = InputState::Idle;
+                } else if is_mouse_button_pressed(MouseButton::Left) {
+                    
+                    // check intersection of tree with mouse_rect is none.
+                    let envelope = AABB::from_corners(
+                        [mouse_rect.x+1.0, mouse_rect.y+1.0],
+                        [mouse_rect.x + mouse_rect.w-2.0, mouse_rect.y + mouse_rect.h-2.0],
+                    );
+
+                    let mouse_intersection: Vec<SpatialBlockIndex> = self.tree
+                    .locate_in_envelope_intersecting(&envelope)
+                    .map(|item| *item)
+                    .collect();
+
+
+                    if !initial_intersection.is_empty() && mouse_intersection.is_empty() {
+
+                        let dx = mouse_rect.x - initial_rect.x;
+                        let dy = mouse_rect.y - initial_rect.y;
+                        let mut gate_map: HashMap<GateKey, GateKey> = HashMap::new();
+                        let mut wire_map: HashMap<WireKey, WireKey> = HashMap::new();
+
+                        for SpatialBlockIndex{rect, index} in &initial_intersection {
+                            let old_gate = self.circuit.gates.get(*index).unwrap();
+                            let rotation = old_gate.rotation.clone();
+                            let gate_type = old_gate.gate_type.clone();
+                            let new_gate_rect = Rect::new(rect.x + dx, rect.y + dy, rect.w, rect.h);
+                            let new_gate_id = self.circuit.gates.insert(Gate::new(new_gate_rect, rotation, gate_type));
+                            self.tree.insert(SpatialBlockIndex { rect: new_gate_rect, index: new_gate_id });
+                            gate_map.insert(*index, new_gate_id);
+                        
+                            let new_gate_index = gate_map.get_mut(index).unwrap();
+
+                            // create wires that have a source in 'intersection'
+                            let mut wires_to_create = Vec::new();
+                            for (old_key, old_wire) in &self.circuit.wires {
+                                if old_wire.source.gate_index == *index {
+                                    wires_to_create.push((old_key, old_wire.source.pin_index));
+                                }
+                            }
+
+                            for (old_key, pin_idx) in wires_to_create {
+                                // connect the source pins
+                                let new_wire = Wire::new(
+                                    Connection { 
+                                        gate_index: *new_gate_index, 
+                                        pin_index: pin_idx 
+                                    }, 
+                                    vec![] 
+                                );
+                                
+                                let new_wire_id = self.circuit.wires.insert(new_wire);
+                                self.circuit.gates.get_mut(*new_gate_index).unwrap().output[pin_idx].wire_index = Some(new_wire_id);
+                                
+                                wire_map.insert(old_key, new_wire_id);
+                                self.circuit.wires_read.insert(new_wire_id, false);
+                                self.circuit.wires_write.insert(new_wire_id, false);
+                            }
+                        }
+
+                        for SpatialBlockIndex { rect: _, index } in &initial_intersection {
+                            let new_gate_id = *gate_map.get(index).unwrap();
+                            let old_inputs = self.circuit.gates.get(*index).unwrap().input.clone();
+
+                            for (pin_index, old_pin) in old_inputs.iter().enumerate() {
+                                if let Some(wire_index) = &old_pin.wire_index {
+                                    let old_wire_source = self.circuit.wires.get(*wire_index).unwrap().source.clone();
+                                    // the wire might not have a source in 'intersection'
+                                    if let Some(new_wire_id) = wire_map.get(wire_index) {
+                                        // if it has an input in 'intersection'
+                                        let new_wire = self.circuit.wires.get_mut(*new_wire_id).unwrap();
+                                        // if the connected pin_index is not a source
+                                        if old_wire_source.pin_index != old_pin.index || old_wire_source.gate_index != *index {
+                                            new_wire.connections.push(Connection{ pin_index: pin_index, gate_index: new_gate_id });
+                                            self.circuit.gates.get_mut(new_gate_id).unwrap().input[pin_index].wire_index = Some(*new_wire_id); 
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        self.state = InputState::Idle;
+                    }
+                }
+                // write to rect
+                else if let InputState::PastingGates { mouse_rect, .. } = &mut self.state {
+                    // rect should already be aligned
+                    mouse_rect.x = mouse_aligned.x - (mouse_rect.w * 0.5).align(64.0);
+                    mouse_rect.y = mouse_aligned.y - (mouse_rect.h * 0.5).align(64.0);
+                }
+            }
+            InputState::SelectedGates { gates, gates_rect } => {
+                if is_mouse_button_pressed(MouseButton::Right) {
+                    self.state = InputState::Idle;
+                } else if is_mouse_button_pressed(MouseButton::Left) {
+                    for gate in gates.clone() {
+                        if gate.rect.contains(mouse_world) {
+                            self.state = InputState::ClickSelectedGates{ initial_click_pos: mouse_world, initial_gates_rect: gates_rect, gates: gates.clone()} // i guess this will be very slow
+                        }
+                    }
+                }
+            }
+            InputState::ClickSelectedGates { initial_click_pos, initial_gates_rect, gates } => {
+                // if left click is released 
+                if is_mouse_button_released(MouseButton::Left) {
+                    self.state = InputState::Idle;
+                } else {
+                    // if distance from initial_click_pos to mouse_world is more than MIN
+                    let dist = initial_click_pos.distance(mouse_world);
+                    if dist > DRAG_MIN_DIST {
+                        //remove from tree all dragging gates
+                        for SpatialBlockIndex{ index: gate_key, .. } in gates.clone() {
+                            if let Some(gate) = self.circuit.gates.get(gate_key) {
+                                self.tree.remove(&SpatialBlockIndex {
+                                    rect: gate.rect,
+                                    index: gate_key,
+                                });
+                            }
+                        }
+                        self.state = InputState::DraggingSelectedGates { gates: gates.clone(), initial_gates: gates.clone(), initial_click_pos };
+                    }
+                }
+            }
+            InputState::DraggingSelectedGates { initial_gates, gates, initial_click_pos } => {
+                // place when left mouse released or pressed
+                for (index, SpatialBlockIndex{ index: gate_key, .. }) in gates.iter().enumerate() {
+                    let gate = &mut self.circuit.gates.get_mut(*gate_key).unwrap();
+                    let initial_gate_rect = initial_gates[index].rect;
+
+                    // gate.rect.x = initial_gate_rect.x + (mouse_world.x - initial_click_pos.x).align(64.0);
+                    // gate.rect.y = initial_gate_rect.y + (mouse_world.y - initial_click_pos.y).align(64.0);
+
+                    gate.offset(Vec2::new(
+                        initial_gate_rect.x + (mouse_world.x - initial_click_pos.x + gate.rect.w * 0.5).align(64.0) - gate.rect.x,
+                        initial_gate_rect.y + (mouse_world.y - initial_click_pos.y + gate.rect.h * 0.5).align(64.0) - gate.rect.y
+                    ));
+
+                    if is_mouse_button_released(MouseButton::Left) {
+                        // Re-insert into tree
+                        self.tree.insert(SpatialBlockIndex {
+                            rect: gate.rect,
+                            index: *gate_key,
+                        });
+                        self.state = InputState::Idle;
                     }
                 }
             }
@@ -445,25 +709,21 @@ impl Simulator {
             vec2(1. / screen_width() * 2., 1. / screen_height() * 2.),
         );
 
+        let mouse_world =  self.camera.screen_to_world(vec2(mouse_position().0, mouse_position().1));
+        
         // draw transparent gate at mouse if choosing gate
-        match self.state {
-            InputState::ChoosingGate { gate_type } => {
-                let m = self
-                    .camera
-                    .screen_to_world(vec2(mouse_position().0, mouse_position().1));
-                let snap_pos = vec2((m.x / 64.).floor() * 64., (m.y / 64.).floor() * 64.);
+        match self.state.clone() {
+            InputState::ChoosingGate { gate_type, gate_rotation } => {
+                let snap_pos = vec2((mouse_world.x / 64.).floor() * 64., (mouse_world.y / 64.).floor() * 64.);
                 let r = Rect::new(snap_pos.x, snap_pos.y, 64., 64.);
-                crate::utils::draw_gate_over_mouse(&self.camera, r, &gate_type, 0.5);
+                crate::utils::draw_gate_over_mouse(&self.camera, r, gate_type, gate_rotation, 0.5);
             }
 
-            InputState::GateDrag { gate_id } => {
+            InputState::DragGate { gate_id } => {
                 if let Some(gate) = self.circuit.gates.get(gate_id).as_ref() {
-                    let m = self
-                        .camera
-                        .screen_to_world(vec2(mouse_position().0, mouse_position().1));
-                    let snap_pos = vec2((m.x / 64.).floor() * 64., (m.y / 64.).floor() * 64.);
+                    let snap_pos = vec2((mouse_world.x / 64.).floor() * 64., (mouse_world.y / 64.).floor() * 64.);
                     let r = Rect::new(snap_pos.x, snap_pos.y, 64., 64.);
-                    crate::utils::draw_gate_over_mouse(&self.camera, r, &gate.gate_type, 0.5);
+                    crate::utils::draw_gate_over_mouse(&self.camera, r, gate.gate_type.clone(), gate.rotation.clone(), 0.5);
                 }
             }
             _ => {}
@@ -474,12 +734,12 @@ impl Simulator {
         crate::utils::draw_pins(&self.circuit, &self.camera);
 
         // draw hover gate
-        match self.state {
-            InputState::GateDrag { gate_id: id } => {
-               if let Some(gate) = self.circuit.gates.get(id).as_mut() {
-                   gate.draw(camera_view_rect(&self.camera));
-                   gate.draw_wires(&self.circuit, camera_view_rect(&self.camera));
-                   gate.draw_pins(camera_view_rect(&self.camera));
+        match self.state.clone() {
+            InputState::DragGate { gate_id: id } => {
+               if let Some(gate) = self.circuit.gates.get(id) {
+                    gate.draw(camera_view_rect(&self.camera), gate.gate_type.color());
+                    gate.draw_wires(&self.circuit, camera_view_rect(&self.camera));
+                    gate.draw_pins(&self.circuit, camera_view_rect(&self.camera), BLACK);
                }
             }
             InputState::Wiring { gate, pin, p_type } => {
@@ -491,33 +751,41 @@ impl Simulator {
                     Some(p_type),
                 );
             }
+            InputState::SelectingGates { selection_rect, .. } => {
+                draw_rectangle_lines(selection_rect.x, selection_rect.y, selection_rect.w, selection_rect.h, 3.0, BLACK);
+            }
+            InputState::PastingGates { mouse_rect: rect, .. } => {
+                // at mouse center draw aligned rectangle 
+                draw_rectangle(rect.x, rect.y, rect.w, rect.h, BLUE.lerp(WHITE, 0.2));
+            }
+            InputState::SelectedGates { gates: indices, .. } => {
+                for index in indices {
+                    let gate = self.circuit.gates.get(index.index).unwrap(); // should be a valid index
+                    gate.draw(camera_view_rect(&self.camera), gate.gate_type.color().lerp(BLUE, 0.5));
+                    gate.draw_wires(&self.circuit, camera_view_rect(&self.camera));
+                    gate.draw_pins(&self.circuit, camera_view_rect(&self.camera), BLACK.lerp(BLUE, 0.5));
+                }
+            }
             _ => {}
         }
+
 
         set_default_camera();
 
         write!(self.log_msg, "input state: {} |", self.state.to_string()).unwrap();
-        if let Some(id) = self.hovered_gate_idx {
-            write!(self.log_msg, " hovering gate index: {:?}", id).unwrap();
-        }
-        write!(
-            self.log_msg,
-            "rotation: {} |",
-            self.gate_rotation.to_string()
-        )
-        .unwrap();
+
         draw_ui(self.log_msg.clone());
     }
 
-    fn place_gate(&mut self, pos: Vec2, gate_type: GateType) {
-        let snap_x = (pos.x / 64.0).floor() * 64.0;
-        let snap_y = (pos.y / 64.0).floor() * 64.0;
+    fn place_gate(&mut self, pos: Vec2, gate_type: GateType, gate_rotation: Rotation) {
+        let snap_x = pos.x.align(64.0);
+        let snap_y = pos.y.align(64.0);
         let rect = Rect::new(snap_x, snap_y, 64.0, 64.0);
 
         let idx = self
             .circuit
             .gates
-            .insert(Gate::new(rect, self.gate_rotation.clone(), gate_type));
+            .insert(Gate::new(rect, gate_rotation, gate_type));
         self.tree.insert(SpatialBlockIndex { rect, index: idx });
     }
 
@@ -544,7 +812,7 @@ impl Simulator {
     }
 
     fn delete_wire_at_pin(&mut self, g: GateKey, p: usize, t: PinType) {
-        if let Some(gate) = self.circuit.gates.get(g) {
+        if let Some(gate) = self.circuit.gates.get_mut(g) {
             let wire_index = gate.get_pin(p, t).wire_index;
 
             if let Some(wirekey) = wire_index {
@@ -559,9 +827,10 @@ impl Simulator {
                     // if there are more connections to wire
                     } else {
                         let element_index: Option<usize> = wire.connections.find_pin_index(g, p);
-                        if element_index.is_some() {
+                        if let Some(idx) = element_index {
                             // remove from wire
-                            wire.connections.remove(element_index.unwrap());
+                            wire.connections.remove(idx);
+                            gate.input[p].wire_index = None;
                         } else {
                             panic!(
                                 "pin {p} of gate {:?} is connected to {:?} but is not source or connection",
