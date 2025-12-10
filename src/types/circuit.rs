@@ -117,50 +117,49 @@ impl Circuit {
                 match output_pin.wire_index {
                     Some(wire_index) => {
                         // check that they aren't connected already
-                        let connected = self
-                            .wires
-                            .get(wire_index)
-                            .unwrap()
-                            .connections
-                            .find_pin_index(input_gate_index, input_pin.index)
-                            .is_some();
-
-                        if !connected {
-                            // if input_pin is part of another wire
-                            if let Some(wire_index) = input_pin.wire_index {
-                                // input_pin can only be in 'connections'
-                                // if other wire only connects to input_pin, remove wire
-                                if self.wires.get(wire_index).unwrap().connections.len() == 1 {
-                                    self.wires.remove(wire_index);
-                                } else {
-                                    // if other wire has more connections, remove input_pin from connections
-                                    let index_to_remove = self
-                                        .wires
-                                        .get(wire_index)
-                                        .unwrap()
-                                        .connections
-                                        .find_pin_index(input_gate_index, input_pin.index);
-                                    if index_to_remove.is_some() {
-                                        self.wires
-                                            .get_mut(wire_index)
-                                            .unwrap()
-                                            .connections
-                                            .remove(index_to_remove.unwrap());
+                        if let Some(wire) = self.wires.get(wire_index) {
+                            let connected = wire
+                                .connections
+                                .find_pin_index(input_gate_index, input_pin.index)
+                                .is_some();
+                            if !connected {
+                                // if input_pin is part of another wire
+                                if let Some(wire_index) = input_pin.wire_index {
+                                    // input_pin can only be in 'connections'
+                                    // if other wire only connects to input_pin, remove wire
+                                    if let Some(wire) = self.wires.get(wire_index) {
+                                        if wire.connections.len() == 1 {
+                                            self.remove_wire(wire_index);
+                                        }
+                                    } else {
+                                        // if other wire has more connections, remove input_pin from connections
+                                        if let Some(wire) = self.wires.get(wire_index) {
+                                            let index_to_remove = wire
+                                                .connections
+                                                .find_pin_index(input_gate_index, input_pin.index);
+                                            if index_to_remove.is_some() {
+                                                self.wires
+                                                    .get_mut(wire_index)
+                                                    .unwrap()
+                                                    .connections
+                                                    .remove(index_to_remove.unwrap());
+                                            }
+                                        }
                                     }
                                 }
-                            }
 
-                            self.wires
-                                .get_mut(wire_index)
-                                .unwrap()
-                                .connections
-                                .push(Connection {
-                                    pin_index: input_pin.index,
-                                    gate_index: input_gate_index,
-                                });
-                            // input_pin.wire_index = Some(wire_index);
-                            if let Some(gate) = self.gates.get_mut(input_gate_index).as_mut() {
-                                gate.input[input_pin_index].wire_index = Some(wire_index); // fixed
+                                if let Some(wire) = self.wires.get_mut(wire_index) {
+                                    wire.connections.push(Connection {
+                                        pin_index: input_pin.index,
+                                        gate_index: input_gate_index,
+                                    });
+                                    // input_pin.wire_index = Some(wire_index);
+                                    if let Some(gate) =
+                                        self.gates.get_mut(input_gate_index).as_mut()
+                                    {
+                                        gate.input[input_pin_index].wire_index = Some(wire_index); // fixed
+                                    }
+                                }
                             }
                         }
                         // if connected don't do anything
@@ -170,7 +169,7 @@ impl Circuit {
                         if let Some(wire_index) = input_pin.wire_index {
                             if let Some(wire) = self.wires.get(wire_index) {
                                 if wire.connections.len() == 1 {
-                                    self.wires.remove(wire_index);
+                                    self.remove_wire(wire_index);
                                 }
                             } else {
                                 // usize is correct, only wire itself references connections

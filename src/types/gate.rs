@@ -1,8 +1,8 @@
+use crate::types::circuit::*;
 use crate::types::gate_type::*;
 use crate::types::pin_type::*;
 use crate::types::pins::*;
 use crate::utils::*;
-use crate::types::circuit::*;
 use macroquad::prelude::*;
 use serde::{Deserialize, Serialize};
 const GATE_SIZE: u16 = 64;
@@ -230,14 +230,24 @@ impl Gate {
             if let Some(wire_index) = pin.wire_index {
                 for conn in &circuit.wires.get(wire_index).unwrap().connections {
                     let out_gate = circuit.gates.get(conn.gate_index).unwrap();
-                    let out_pin_center = out_gate.get_pin(conn.pin_index, PinType::Input).rect.center();
+                    let out_pin_center = out_gate
+                        .get_pin(conn.pin_index, PinType::Input)
+                        .rect
+                        .center();
                     // draw line between out_pin_center, center
                     let color = match circuit.wires_read.get(wire_index).unwrap() {
                         true => YELLOW,
                         false => BLACK,
                     };
 
-                    draw_line(center.x, center.y, out_pin_center.x, out_pin_center.y, 3.0, color);
+                    draw_line(
+                        center.x,
+                        center.y,
+                        out_pin_center.x,
+                        out_pin_center.y,
+                        3.0,
+                        color,
+                    );
                 }
             }
         }
@@ -247,14 +257,24 @@ impl Gate {
             if let Some(wire_index) = pin.wire_index {
                 let conn = &circuit.wires.get(wire_index).unwrap().source;
                 let in_gate = circuit.gates.get(conn.gate_index).unwrap();
-                let in_pin_center = in_gate.get_pin(conn.pin_index, PinType::Output).rect.center();
+                let in_pin_center = in_gate
+                    .get_pin(conn.pin_index, PinType::Output)
+                    .rect
+                    .center();
                 // draw line between in_pin_center, center
                 let color = match circuit.wires_read.get(wire_index).unwrap() {
                     true => YELLOW,
                     false => BLACK,
                 };
 
-                draw_line(center.x, center.y, in_pin_center.x, in_pin_center.y, 3.0, color);
+                draw_line(
+                    center.x,
+                    center.y,
+                    in_pin_center.x,
+                    in_pin_center.y,
+                    3.0,
+                    color,
+                );
             }
         }
     }
