@@ -56,7 +56,7 @@ pub struct Gate {
 impl Gate {
     pub fn new(rect: Rect, rotation: Rotation, gate_type: GateType) -> Gate {
         let (input, output) = Self::get_pins(rect, gate_type.clone(), rotation.clone());
-        println!("rect x: {} y: {}", rect.x, rect.y);
+        // println!("rect x: {} y: {}", rect.x, rect.y);
         return Gate {
             rotation: rotation.clone(),
             rect: rect,
@@ -169,6 +169,17 @@ impl Gate {
         }
     }
 
+    pub fn change_rotation(&mut self, new_rotation: Rotation) {
+        self.rotation = new_rotation.clone();
+        let (new_inputs, new_outputs) = Self::get_pins(self.rect, self.gate_type.clone(), self.rotation.clone());
+        for (index, pin) in self.input.iter_mut().enumerate() {
+            pin.rect = new_inputs[index].rect.clone();
+        }
+        for (index, pin) in self.output.iter_mut().enumerate() {
+            pin.rect = new_outputs[index].rect.clone();
+        }
+    }
+
     pub fn get_pin_rect(&self, pin_index: usize, pin_type: PinType) -> Rect {
         return match pin_type {
             PinType::Input => self.input[pin_index].rect,
@@ -183,7 +194,7 @@ impl Gate {
             PinType::Output => self.output[pin_index].clone(),
         };
     }
-
+    // doesnt include the pins for some custom z handling
     pub fn draw(&self, camera_view_rect: Rect, color: Color) {
         if intersects(self.rect, camera_view_rect) {
 

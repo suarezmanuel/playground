@@ -1,6 +1,6 @@
 ## PENDING
 
-- switch 'index' to 'key', 'start' to 'initial'
+- switch 'index' to 'key', 'start' to 'initial', use 'sp_index'
 - fix the grid to be in actual pixels and not arbitrary size, the zooming looks unnatural and some lines are drawn with different widths
 - profile the code (in ui) and make it optimized:
     - make the game more responsive, make interactions take 1 frame or 2 at most
@@ -9,6 +9,7 @@
     - merge sub circuits into formulas
     - start using references with lifetime
     - do imports affect runtime??
+    - so many gates moves that may be uneccessary
 - make a custom rect type that uses usize for (x,y) instead of f32 to be more space efficient, either way
 all rects are aligned it would help enforce alignment when drawing
 - implement a lerp helper to Color
@@ -20,13 +21,13 @@ all rects are aligned it would help enforce alignment when drawing
     - make keyboard strokes register in game, and input requests (make a terminal)
     - add a debug mode to highlight points and rects, lines
 - don't make esc actually exit, and make it more like right click (needs more thinking)
+- revamp the draw_gate_over_mouse and the drawing of gates in general:
+    - maybe move the big matches in draw() to their own separate predraw(), postdraw()?
 
 ========================================
 
 ## WORKING ON
 
-- change 'DragGate' to 'DraggingGate'
-- check before accepting drag-drop that there is no intersection with tree, lacking in DragGate and DraggingSelectedGates
 - allow for deletion of selection of gates
 
 - make custom gates from selection:
@@ -45,3 +46,7 @@ X FIX: dragging, doing shift and right clicking places an already dragged gate
 X lerp selected gates with blue ; added some more InputStates, color, base_color fields to Gate::draw, Gate::draw_pins
 X allow for dragging a selection of gates
 X make an 'align' helper trait for f32.
+X change 'DragGate' to 'DraggingGate'
+X make the DraggingSelectedGates not be aligned and draw the drop shadow of gates
+X check before accepting drag-drop that there is no intersection with tree, lacking in DragGate and DraggingSelectedGates
+X pasting gates shouldnt have a big rectangle, rather some hover gates because the gates might be diagonal and not intersect
